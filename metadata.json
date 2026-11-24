@@ -1,6 +1,6 @@
 {
-  "name": "RailSpec KAVACH Studio",
-  "description": "Engineering platform for railway station layout analysis (DWG, DXF, PDF), dynamic RDSO KAVACH component extraction, engineering calculations, editable control tables, and PDF/Excel documentation export.",
+  "name": "X-Tractor",
+  "description": "100% offline engineering platform for railway station layout analysis (DWG, DXF, PDF), dynamic RDSO KAVACH component extraction, engineering calculations, editable control tables, and PDF/Excel documentation export.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

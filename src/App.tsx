@@ -585,30 +585,48 @@ export default function App() {
   );
 
   const handleAddRow = useCallback(
-    (tableId: KavachTableId) => {
+    (tableId: KavachTableId, customRow?: TableRowRecord, insertIndex?: number) => {
       setProject((prev) => {
-        const spec = KAVACH_TABLE_MAP[tableId];
-        const cells: Record<string, string> = {};
-        const cellMeta: TableRowRecord['cellMeta'] = {};
-        const nextIdx = prev.tables[tableId].length + 1;
+        let newRow: TableRowRecord;
+        if (customRow) {
+          newRow = customRow;
+        } else {
+          const spec = KAVACH_TABLE_MAP[tableId];
+          const cells: Record<string, string> = {};
+          const cellMeta: TableRowRecord['cellMeta'] = {};
+          const nextIdx = prev.tables[tableId].length + 1;
 
-        for (const col of spec.columns) {
-          if (col.key === 'sNo') {
-            cells[col.key] = String(nextIdx);
-            cellMeta[col.key] = { source: 'calculated' };
-          } else {
-            cells[col.key] = '';
-            cellMeta[col.key] = { source: 'missing' };
+          for (const col of spec.columns) {
+            if (col.key === 'sNo') {
+              cells[col.key] = String(nextIdx);
+              cellMeta[col.key] = { source: 'calculated' };
+            } else {
+              cells[col.key] = '';
+              cellMeta[col.key] = { source: 'missing' };
+            }
           }
+
+          newRow = {
+            rowId: `${tableId}_manual_${Date.now().toString(36)}`,
+            cells,
+            cellMeta,
+            sourceTrace: 'Added manually',
+          };
         }
 
-        const newRow: TableRowRecord = {
-          rowId: `${tableId}_manual_${Date.now().toString(36)}`,
-          cells,
-          cellMeta,
-          sourceTrace: 'Added manually',
-        };
-        const nextTables = { ...prev.tables, [tableId]: [...prev.tables[tableId], newRow] };
+        const currentList = prev.tables[tableId];
+        let nextList: TableRowRecord[];
+        if (typeof insertIndex === 'number' && insertIndex >= 0 && insertIndex <= currentList.length) {
+          nextList = [
+            ...currentList.slice(0, insertIndex),
+            newRow,
+            ...currentList.slice(insertIndex),
+          ];
+        } else {
+          nextList = [...currentList, newRow];
+        }
+
+        const nextTables = { ...prev.tables, [tableId]: nextList };
         const { tables, validationIssues } = applyRecalcAndValidate(
           nextTables,
           prev.metadata,
@@ -830,7 +848,7 @@ export default function App() {
         <div className="h-14 px-5 flex items-center gap-2.5 border-b border-slate-800 shrink-0">
           <TrainTrack className="w-5 h-5 text-blue-400 shrink-0" />
           <span className="font-bold text-sm tracking-tight text-white whitespace-nowrap truncate">
-            RailSpec KAVACH Studio
+            X-Tractor
           </span>
         </div>
 
@@ -878,16 +896,6 @@ export default function App() {
             );
           })}
         </nav>
-
-        {/* Active Station Context Footer (Quiet, Functional) */}
-        <div className="px-4 py-3 border-t border-slate-800 text-[11px] text-slate-400 space-y-0.5 shrink-0">
-          <div className="text-slate-200 font-medium truncate">
-            {project.metadata.stationName || activeDrawing?.fileName || 'No Station Active'}
-          </div>
-          <div className="font-mono tabular-nums text-slate-400">
-            RDSO/SPN/196/2020 · Amdt-6
-          </div>
-        </div>
       </aside>
 
       {/* Main Content Shell */}
@@ -905,7 +913,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
-            {activeDrawing && activeNav !== 'extraction' && activeNav !== 'viewer' && (
+            {activeDrawing && activeNav !== 'extraction' && activeNav !== 'viewer' && activeNav !== 'tables' && (
               <button
                 type="button"
                 onClick={handleStartExtraction}
@@ -916,17 +924,21 @@ export default function App() {
                 {project.extractionStatus === 'running' ? 'Extracting...' : 'Start Extraction'}
               </button>
             )}
-            {project.extractionStatus === 'completed' && activeNav !== 'tables' && (
-              <button
-                type="button"
-                onClick={() => handleSaveAndValidate(true)}
-                disabled={isSaving}
-                className="px-3.5 py-1.5 text-xs font-medium text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-md flex items-center gap-1.5 whitespace-nowrap shrink-0"
-              >
-                <Save className="w-3.5 h-3.5" />
-                Save & Preview
-              </button>
-            )}
+            {project.extractionStatus === 'completed' &&
+              activeNav !== 'upload' &&
+              activeNav !== 'viewer' &&
+              activeNav !== 'extraction' &&
+              activeNav !== 'components' && (
+                <button
+                  type="button"
+                  onClick={() => handleSaveAndValidate(true)}
+                  disabled={isSaving}
+                  className="px-3.5 py-1.5 text-xs font-medium text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-md flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  Save & Preview
+                </button>
+              )}
           </div>
         </header>
 

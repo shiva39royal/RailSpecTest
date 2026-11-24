@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
   AlertTriangle,
-  BookOpen,
   CheckCircle2,
   Eye,
   FileCode2,
@@ -37,7 +36,6 @@ export function UploadWorkspace({
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadStatusText, setUploadStatusText] = useState<string>('');
-  const [loadingSpec, setLoadingSpec] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
@@ -80,26 +78,6 @@ export function UploadWorkspace({
     }
   };
 
-  const handleLoadSpecPdf = async () => {
-    setErrorMsg(null);
-    setLoadingSpec(true);
-    try {
-      const data = await fetchJsonWithRetry<{ drawing: UploadedDrawing }>(
-        '/api/drawings/load-spec-pdf',
-        () => ({ method: 'POST' }),
-        {
-          fallbackError: 'Could not load RDSO specification PDF',
-          maxRetries: 3,
-        }
-      );
-      onDrawingUploaded(data.drawing);
-    } catch (err) {
-      setErrorMsg((err as Error).message);
-    } finally {
-      setLoadingSpec(false);
-    }
-  };
-
   return (
     <div className="space-y-6 max-w-6xl">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -109,16 +87,6 @@ export function UploadWorkspace({
             Upload railway station layout drawings in DWG, DXF, or PDF format. Files are validated, border-fitted for clean inspection, and analyzed dynamically on demand.
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={handleLoadSpecPdf}
-          disabled={loadingSpec}
-          className="px-3.5 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
-        >
-          <BookOpen className="w-3.5 h-3.5 text-blue-700" />
-          {loadingSpec ? 'Loading Spec PDF...' : 'Load RDSO Spec PDF (39 Pages)'}
-        </button>
       </div>
 
       {/* Dropzone */}

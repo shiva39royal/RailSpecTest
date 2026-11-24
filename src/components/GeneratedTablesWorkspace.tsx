@@ -3,21 +3,26 @@ import {
   AlertTriangle,
   ArrowUpDown,
   Bold,
+  Check,
   CheckSquare,
   Copy,
   Eraser,
   FileEdit,
+  Layers,
   Plus,
   RotateCcw,
+  Route,
   Save,
   Search,
   SlidersHorizontal,
   Trash2,
   Type,
+  X,
 } from 'lucide-react';
 import { KAVACH_SPEC_TABLES, KAVACH_TABLE_MAP } from '../spec/kavachSpecSchema';
 import {
   TABLE1_COMMON_MERGE_KEY_SET,
+  deriveMovementAuthorityFromExitAspect,
   getSignalTypeChoicesForRow,
   getTable1MergeGroups,
   isCellEmpty,
@@ -65,7 +70,7 @@ interface GeneratedTablesWorkspaceProps {
     targetRowIds?: string[]
   ) => void;
   onRevertCell: (tableId: KavachTableId, rowId: string, columnKey: string) => void;
-  onAddRow: (tableId: KavachTableId) => void;
+  onAddRow: (tableId: KavachTableId, customRow?: TableRowRecord, insertIndex?: number) => void;
   onDuplicateRow: (tableId: KavachTableId, rowId: string) => void;
   onDeleteRow: (tableId: KavachTableId, rowId: string) => void;
   onUpdateMetadata: (patch: Partial<DocumentMetadata>) => void;
@@ -114,6 +119,18 @@ export function GeneratedTablesWorkspace({
   } | null>(null);
   const [pendingDeleteRowId, setPendingDeleteRowId] = useState<string | null>(null);
 
+  // Hierarchical Add Row Modal State
+  const [isAddRowModalOpen, setIsAddRowModalOpen] = useState(false);
+  const [targetSno, setTargetSno] = useState<string>('1');
+  const [isNewRoute, setIsNewRoute] = useState(false);
+  const [entryAspect, setEntryAspect] = useState<string>('Green');
+  const [exitAspect, setExitAspect] = useState<string>('Green');
+  const [newEntrySignal, setNewEntrySignal] = useState('');
+  const [newExitSignal, setNewExitSignal] = useState('');
+  const [newLine, setNewLine] = useState('Down Main');
+  const [newSignalType, setNewSignalType] = useState('Home Signal');
+  const [genericRowCells, setGenericRowCells] = useState<Record<string, string>>({});
+
   const selectedSet = useMemo(() => new Set(selectedTableIds), [selectedTableIds]);
   const visibleTables = useMemo(
     () => KAVACH_SPEC_TABLES.filter((t) => selectedSet.has(t.id)),
@@ -126,6 +143,145 @@ export function GeneratedTablesWorkspace({
 
   const spec = KAVACH_TABLE_MAP[effectiveTableId];
   const rows = tables[effectiveTableId] || [];
+
+  const table1Routes = useMemo(() => {
+    if (effectiveTableId !== 'table1_control') return [];
+    const t1Rows = tables.table1_control || [];
+    const routes: Array<{
+      sNo: string;
+      entrySignal: string;
+      exitSignal: string;
+      line: string;
+      signalType: string;
+      lastRowIndex: number;
+      sampleRow: TableRowRecord;
+      aspectCount: number;
+    }> = [];
+
+    t1Rows.forEach((row, idx) => {
+      const sNo = row.cells.sNo || '';
+      const existing = routes.find((r) => r.sNo === sNo);
+      if (existing) {
+        existing.lastRowIndex = idx;
+        existing.aspectCount++;
+      } else {
+        routes.push({
+          sNo,
+          entrySignal: row.cells.entrySignal || '',
+          exitSignal: row.cells.exitSignal || '',
+          line: row.cells.line || '',
+          signalType: row.cells.signalType || '',
+          lastRowIndex: idx,
+          sampleRow: row,
+          aspectCount: 1,
+        });
+      }
+    });
+
+    return routes;
+  }, [effectiveTableId, tables.table1_control]);
+
+  const handleConfirmAddRow = () => {
+    if (effectiveTableId === 'table1_control') {
+      if (!isNewRoute && targetSno) {
+        const route = table1Routes.find((r) => r.sNo === targetSno);
+        if (route) {
+          const ma = deriveMovementAuthorityFromExitAspect(exitAspect);
+          const newRow: TableRowRecord = {
+            rowId: `t1_manual_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+            cells: {
+              ...route.sampleRow.cells,
+              sNo: route.sNo,
+              aspectEntry: entryAspect,
+              aspectExit: exitAspect,
+              movementAuthority: ma,
+            },
+            cellMeta: {
+              ...route.sampleRow.cellMeta,
+              sNo: { source: 'calculated', trace: `Hierarchical aspect under S. No. ${route.sNo}` },
+              aspectEntry: { source: 'manual', originalValue: entryAspect },
+              aspectExit: { source: 'manual', originalValue: exitAspect },
+              movementAuthority: {
+                source: 'calculated',
+                originalValue: ma,
+                trace: `Derived MA (${ma}) from Exit Aspect "${exitAspect}"`,
+              },
+            },
+            sourceTrace: `Added under S. No. ${route.sNo} (${route.entrySignal} → ${route.exitSignal})`,
+          };
+          onAddRow('table1_control', newRow, route.lastRowIndex + 1);
+          setIsAddRowModalOpen(false);
+          return;
+        }
+      }
+
+      // New Route
+      const nextSno = String(table1Routes.length + 1);
+      const ma = deriveMovementAuthorityFromExitAspect(exitAspect);
+      const newRow: TableRowRecord = {
+        rowId: `t1_manual_${Date.now().toString(36)}`,
+        cells: {
+          sNo: nextSno,
+          entrySignal: newEntrySignal.trim().toUpperCase() || 'S1',
+          exitSignal: newExitSignal.trim().toUpperCase() || 'S2',
+          sectionType: 'Station Section',
+          line: newLine || 'Down Main',
+          signalType: newSignalType || 'Home Signal',
+          aspectEntry: entryAspect,
+          aspectExit: exitAspect,
+          pointsNormal: '-',
+          pointsReverse: '-',
+          trackCircuitUp: '-',
+          tinsFree: '-',
+          tinsOverlap: '-',
+          entryFootTag: '',
+          enRouteTags: '',
+          distanceMeters: '',
+          movementAuthority: ma,
+          authorizedSpeedOs: 'MPS',
+        },
+        cellMeta: {
+          sNo: { source: 'calculated' },
+          aspectEntry: { source: 'manual', originalValue: entryAspect },
+          aspectExit: { source: 'manual', originalValue: exitAspect },
+          movementAuthority: {
+            source: 'calculated',
+            originalValue: ma,
+            trace: `Derived MA (${ma}) from Exit Aspect "${exitAspect}"`,
+          },
+        },
+        sourceTrace: 'New manual route created',
+      };
+      onAddRow('table1_control', newRow);
+      setIsAddRowModalOpen(false);
+      return;
+    }
+
+    // Tables 2-7
+    const curSpec = KAVACH_TABLE_MAP[effectiveTableId];
+    const cells: Record<string, string> = {};
+    const cellMeta: TableRowRecord['cellMeta'] = {};
+    const nextIdx = (tables[effectiveTableId] || []).length + 1;
+
+    for (const col of curSpec.columns) {
+      if (col.key === 'sNo') {
+        cells[col.key] = String(nextIdx);
+        cellMeta[col.key] = { source: 'calculated' };
+      } else {
+        cells[col.key] = genericRowCells[col.key] || '';
+        cellMeta[col.key] = { source: cells[col.key] ? 'manual' : 'missing' };
+      }
+    }
+
+    const newRow: TableRowRecord = {
+      rowId: `${effectiveTableId}_manual_${Date.now().toString(36)}`,
+      cells,
+      cellMeta,
+      sourceTrace: 'Added manually via modal',
+    };
+    onAddRow(effectiveTableId, newRow);
+    setIsAddRowModalOpen(false);
+  };
 
   const toggleTableSelection = (id: KavachTableId) => {
     const next = new Set(selectedTableIds);
@@ -558,8 +714,23 @@ export function GeneratedTablesWorkspace({
 
             <button
               type="button"
-              onClick={() => onAddRow(effectiveTableId)}
-              className="px-3 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-md flex items-center gap-1 whitespace-nowrap"
+              onClick={() => {
+                if (table1Routes.length > 0) {
+                  setTargetSno(table1Routes[0].sNo);
+                  setIsNewRoute(false);
+                } else {
+                  setIsNewRoute(true);
+                }
+                setEntryAspect('Green');
+                setExitAspect('Green');
+                setNewEntrySignal('');
+                setNewExitSignal('');
+                setNewLine('Down Main');
+                setNewSignalType('Home Signal');
+                setGenericRowCells({});
+                setIsAddRowModalOpen(true);
+              }}
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-md flex items-center gap-1.5 whitespace-nowrap shadow-xs"
             >
               <Plus className="w-3.5 h-3.5" />
               Add Row
@@ -738,12 +909,6 @@ export function GeneratedTablesWorkspace({
               {hasColumnGroups ? (
                 <>
                   <tr>
-                    <th
-                      rowSpan={2}
-                      className="border border-slate-300 px-2 py-2 text-center font-semibold w-20 bg-slate-100"
-                    >
-                      Actions
-                    </th>
                     {topHeaderCells.map((cell, idx) => (
                       <th
                         key={idx}
@@ -760,6 +925,12 @@ export function GeneratedTablesWorkspace({
                         </span>
                       </th>
                     ))}
+                    <th
+                      rowSpan={2}
+                      className="border border-slate-300 px-2 py-2 text-center font-semibold w-20 bg-slate-100"
+                    >
+                      Actions
+                    </th>
                   </tr>
                   <tr>
                     {spec.columns
@@ -782,9 +953,6 @@ export function GeneratedTablesWorkspace({
                 </>
               ) : (
                 <tr>
-                  <th className="border border-slate-300 px-2 py-2 text-center font-semibold w-20">
-                    Actions
-                  </th>
                   {spec.columns.map((col) => (
                     <th
                       key={col.key}
@@ -799,6 +967,9 @@ export function GeneratedTablesWorkspace({
                       </span>
                     </th>
                   ))}
+                  <th className="border border-slate-300 px-2 py-2 text-center font-semibold w-20 bg-slate-100">
+                    Actions
+                  </th>
                 </tr>
               )}
             </thead>
@@ -830,28 +1001,6 @@ export function GeneratedTablesWorkspace({
 
                   return (
                     <tr key={row.rowId} className="hover:bg-slate-50/70">
-                      {/* Row Action Buttons */}
-                      <td className="border border-slate-200 px-1.5 py-1 text-center whitespace-nowrap bg-slate-50/50">
-                        <div className="inline-flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => onDuplicateRow(effectiveTableId, row.rowId)}
-                            className="p-1 text-slate-500 hover:text-blue-700 hover:bg-blue-50 rounded"
-                            title="Duplicate row"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setPendingDeleteRowId(row.rowId)}
-                            className="p-1 text-slate-500 hover:text-red-700 hover:bg-red-50 rounded"
-                            title="Delete row"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-
                       {spec.columns.map((col) => {
                         const isCommonMergeCol =
                           effectiveTableId === 'table1_control' &&
@@ -1104,6 +1253,28 @@ export function GeneratedTablesWorkspace({
                           </td>
                         );
                       })}
+
+                      {/* Row Action Buttons (at the far right end) */}
+                      <td className="border border-slate-200 px-1.5 py-1 text-center whitespace-nowrap bg-slate-50/50">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => onDuplicateRow(effectiveTableId, row.rowId)}
+                            className="p-1 text-slate-500 hover:text-blue-700 hover:bg-blue-50 rounded"
+                            title="Duplicate row"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPendingDeleteRowId(row.rowId)}
+                            className="p-1 text-slate-500 hover:text-red-700 hover:bg-red-50 rounded"
+                            title="Delete row"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })
@@ -1138,6 +1309,292 @@ export function GeneratedTablesWorkspace({
                 className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md"
               >
                 Delete Row
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hierarchical Add Row Modal Dialog */}
+      {isAddRowModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-50 text-blue-700 rounded-lg shrink-0">
+                  <Route className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    Add Row — {spec.title}
+                    <span className="text-[10px] font-mono font-medium px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full">
+                      {spec.tableNumber}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {effectiveTableId === 'table1_control'
+                      ? 'Insert aspect rows hierarchically under an existing route (S. No.) or create a new route.'
+                      : `Insert a new engineering row into ${spec.title}.`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddRowModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-md"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {effectiveTableId === 'table1_control' ? (
+              <div className="space-y-4 text-xs">
+                {/* Step 1: Route Group / S. No. Mode */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Route Hierarchy Placement
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsNewRoute(false)}
+                      disabled={table1Routes.length === 0}
+                      className={`px-3 py-2 text-xs font-medium rounded-lg border text-left transition-colors ${
+                        !isNewRoute
+                          ? 'border-blue-600 bg-blue-50/50 text-blue-900 font-semibold'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      Under Existing Route (S. No.)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsNewRoute(true)}
+                      className={`px-3 py-2 text-xs font-medium rounded-lg border text-left transition-colors ${
+                        isNewRoute
+                          ? 'border-blue-600 bg-blue-50/50 text-blue-900 font-semibold'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      + Create New Route
+                    </button>
+                  </div>
+                </div>
+
+                {!isNewRoute ? (
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium text-slate-700">
+                      Select Target Route (S. No.)
+                    </label>
+                    <select
+                      value={targetSno}
+                      onChange={(e) => setTargetSno(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium"
+                    >
+                      {table1Routes.map((r) => (
+                        <option key={r.sNo} value={r.sNo}>
+                          S. No. {r.sNo} : {r.entrySignal} → {r.exitSignal} ({r.line} · {r.aspectCount} aspects)
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Route Preview Card */}
+                    {(() => {
+                      const cur = table1Routes.find((r) => r.sNo === targetSno);
+                      if (!cur) return null;
+                      return (
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-1 text-[11px] text-slate-600">
+                          <div className="flex items-center justify-between text-slate-900 font-medium">
+                            <span>
+                              Route: <strong className="text-blue-700 font-semibold">{cur.entrySignal} → {cur.exitSignal}</strong>
+                            </span>
+                            <span className="font-mono text-slate-500">S. No. {cur.sNo}</span>
+                          </div>
+                          <div>
+                            Line: <span className="font-semibold">{cur.line}</span> · Signal Type: <span className="font-semibold">{cur.signalType}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-slate-600 text-[11px] font-medium mb-1">Entry Signal</label>
+                      <input
+                        type="text"
+                        value={newEntrySignal}
+                        onChange={(e) => setNewEntrySignal(e.target.value)}
+                        placeholder="e.g. S1"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md uppercase font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 text-[11px] font-medium mb-1">Exit Signal</label>
+                      <input
+                        type="text"
+                        value={newExitSignal}
+                        onChange={(e) => setNewExitSignal(e.target.value)}
+                        placeholder="e.g. S3"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md uppercase font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 text-[11px] font-medium mb-1">Line</label>
+                      <input
+                        type="text"
+                        value={newLine}
+                        onChange={(e) => setNewLine(e.target.value)}
+                        placeholder="e.g. Down Main"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 text-[11px] font-medium mb-1">Signal Type</label>
+                      <input
+                        type="text"
+                        value={newSignalType}
+                        onChange={(e) => setNewSignalType(e.target.value)}
+                        placeholder="e.g. Home Signal"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 2: Entry Signal Aspect */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Aspect of Entry Signal
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'Green', dot: 'bg-emerald-500' },
+                      { label: 'Double Yellow', dot: 'bg-amber-500' },
+                      { label: 'Yellow', dot: 'bg-yellow-400' },
+                      { label: 'Red', dot: 'bg-red-500' },
+                      { label: 'Miniature', dot: 'bg-slate-400' },
+                    ].map((asp) => (
+                      <button
+                        key={asp.label}
+                        type="button"
+                        onClick={() => setEntryAspect(asp.label)}
+                        className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 transition-all ${
+                          entryAspect === asp.label
+                            ? 'border-blue-600 bg-blue-50 text-blue-900 font-semibold ring-1 ring-blue-600'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className={`w-2.5 h-2.5 rounded-full ${asp.dot}`} />
+                        <span>{asp.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Step 3: Requires Aspects of Exit Signal */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Requires Aspects of Exit Signal
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'Green', dot: 'bg-emerald-500', ma: '4' },
+                      { label: 'Double Yellow', dot: 'bg-amber-500', ma: '3' },
+                      { label: 'Yellow', dot: 'bg-yellow-400', ma: '2' },
+                      { label: 'Red', dot: 'bg-red-500', ma: '1' },
+                      { label: 'Nil', dot: 'bg-slate-300', ma: '1' },
+                      { label: '-', dot: 'bg-slate-300', ma: '1' },
+                    ].map((asp) => (
+                      <button
+                        key={asp.label}
+                        type="button"
+                        onClick={() => setExitAspect(asp.label)}
+                        className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 transition-all ${
+                          exitAspect === asp.label
+                            ? 'border-blue-600 bg-blue-50 text-blue-900 font-semibold ring-1 ring-blue-600'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className={`w-2.5 h-2.5 rounded-full ${asp.dot}`} />
+                        <span>{asp.label}</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 bg-slate-100 rounded text-slate-600">
+                          MA: {asp.ma}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Step 4: Live Calculated Movement Authority Preview */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs text-blue-950 font-semibold">Calculated Movement Authority:</span>
+                    <span className="ml-2 font-mono font-bold text-sm text-blue-700">
+                      {deriveMovementAuthorityFromExitAspect(exitAspect)} Section(s)
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-medium text-blue-800 bg-blue-100 px-2.5 py-0.5 rounded-full">
+                    {exitAspect.toLowerCase().includes('green')
+                      ? 'Exit Green → 4'
+                      : exitAspect.toLowerCase().includes('double yellow')
+                        ? 'Exit Double Yellow → 3'
+                        : exitAspect.toLowerCase().includes('yellow')
+                          ? 'Exit Yellow → 2'
+                          : 'Exit Red/Nil/- → 1'}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              /* Non-Table 1 generic row fields */
+              <div className="space-y-3 text-xs">
+                <p className="text-slate-600 text-xs">
+                  Enter initial column values for the new record in <strong>{spec.title}</strong>:
+                </p>
+                <div className="grid grid-cols-2 gap-2.5 max-h-60 overflow-y-auto p-1">
+                  {spec.columns
+                    .filter((c) => c.key !== 'sNo')
+                    .slice(0, 8)
+                    .map((col) => (
+                      <div key={col.key}>
+                        <label className="block text-slate-600 text-[11px] font-medium mb-1 truncate">
+                          {col.label} {col.mandatory && <span className="text-red-500">*</span>}
+                        </label>
+                        <input
+                          type="text"
+                          value={genericRowCells[col.key] || ''}
+                          onChange={(e) =>
+                            setGenericRowCells((prev) => ({
+                              ...prev,
+                              [col.key]: e.target.value,
+                            }))
+                          }
+                          placeholder={col.description?.slice(0, 24) || '—'}
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md"
+                        />
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsAddRowModalOpen(false)}
+                className="px-3.5 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAddRow}
+                className="px-4 py-2 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg flex items-center gap-1.5 shadow-sm transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                {effectiveTableId === 'table1_control' ? 'Insert Aspect Row' : 'Insert Table Row'}
               </button>
             </div>
           </div>

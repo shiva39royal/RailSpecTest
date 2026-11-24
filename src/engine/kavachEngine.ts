@@ -503,12 +503,56 @@ export function recalculateDependentTables(
   settings: ExtractionSettings,
   metadata: DocumentMetadata
 ): Record<KavachTableId, TableRowRecord[]> {
+  // Expand compound aspectExit entries (e.g. "Green / Double Yellow") into individual aspect rows
+  const expandedT1: TableRowRecord[] = [];
+  for (const row of tables.table1_control) {
+    const rawExit = (row.cells.aspectExit || '').trim();
+    if (rawExit.includes('/')) {
+      const parts = rawExit.split('/').map((p) => p.trim()).filter(Boolean);
+      parts.forEach((part, subIdx) => {
+        const nextMa = deriveMovementAuthorityFromExitAspect(part);
+        const nextCells: Record<string, string> = {
+          ...row.cells,
+          aspectExit: part,
+          movementAuthority: nextMa,
+        };
+        const nextMeta = { ...row.cellMeta };
+        nextMeta.aspectExit = {
+          source: 'calculated',
+          originalValue: part,
+          trace: 'Split compound aspect exit into individual aspect row',
+        };
+        nextMeta.movementAuthority = {
+          source: 'calculated',
+          originalValue: nextMa,
+          trace: `Movement Authority ${nextMa} derived from Exit Aspect "${part}"`,
+        };
+        expandedT1.push({
+          ...row,
+          rowId: `${row.rowId}_asp${subIdx}`,
+          cells: nextCells,
+          cellMeta: nextMeta,
+        });
+      });
+    } else {
+      const nextMa = deriveMovementAuthorityFromExitAspect(rawExit);
+      const nextCells: Record<string, string> = {
+        ...row.cells,
+        movementAuthority:
+          row.cellMeta?.movementAuthority?.source === 'manual'
+            ? row.cells.movementAuthority || nextMa
+            : nextMa,
+      };
+      expandedT1.push({
+        ...row,
+        cells: nextCells,
+        cellMeta: { ...row.cellMeta },
+      });
+    }
+  }
+
   const next: Record<KavachTableId, TableRowRecord[]> = {
-    table1_control: tables.table1_control.map((r) => ({
-      ...r,
-      cells: { ...r.cells },
-      cellMeta: { ...r.cellMeta },
-    })),
+    table1_control: expandedT1,
     table2_block_section: tables.table2_block_section.map((r) => ({
       ...r,
       cells: { ...r.cells },
