@@ -812,7 +812,7 @@ export function extractComponentsFromCad(
     const clean = raw.trim();
     if (!clean || clean.length > 15) return null;
     if (
-      /^(?:UP|DN|DOWN|NO|ALT|REV|KM|CH|REF|VER|PU|IN|PT|N|FM|DP|BSLB|SLB|CLASS|GATE|LINE|LOOP|STATION|BUILDING|RFID|TIN|VKB|CTF|JKM|DRG|PLAN|SCALE|DATE|REV\.NO)/i.test(
+      /^(?:UP|DN|DOWN|NO|ALT|REV|KM|CH|REF|VER|PU|IN|PT|N|FM|DP|BSLB|SLB|CLASS|GATE|LINE|LOOP|STATION|BUILDING|RFID|TIN|DRG|PLAN|SCALE|DATE|REV\.NO)/i.test(
         clean
       )
     ) {
