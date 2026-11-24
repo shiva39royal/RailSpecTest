@@ -147,107 +147,6 @@ async function getPdfPageDimensions(
   }
 }
 
-/**
- * Computes the exact tight vector ink bounding box (drawing border extent) of a PDF page
- * using Ghostscript's `bbox` device, trimming all blank outer page whitespace while
- * preserving a small clean border margin.
- */
-export async function getPdfPageContentBounds(
-  pdfPath: string,
-  pageNumber = 1
-): Promise<PdfContentBounds> {
-  const safePage = Math.max(1, Math.floor(pageNumber));
-  const meta = await getPdfPageDimensions(pdfPath, safePage);
-  const pageWidth = Math.max(1, meta.pageWidth);
-  const pageHeight = Math.max(1, meta.pageHeight);
-
-  let llx = 0;
-  let lly = 0;
-  let urx = pageWidth;
-  let ury = pageHeight;
-
-  try {
-    // execFile with strict argument array (no shell interpolation)
-    const { stdout, stderr } = await execFileAsync(
-      'gs',
-      [
-        '-q',
-        '-dNOPAUSE',
-        '-dBATCH',
-        '-dSAFER',
-        `-dFirstPage=${safePage}`,
-        `-dLastPage=${safePage}`,
-        '-sDEVICE=bbox',
-        pdfPath,
-      ],
-      { timeout: 20000, maxBuffer: 4 * 1024 * 1024 }
-    );
-
-    const combined = `${stdout}\n${stderr}`;
-    const hiResMatch = combined.match(
-      /%%HiResBoundingBox:\s*([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)/
-    );
-    const stdMatch = combined.match(
-      /%%BoundingBox:\s*([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)/
-    );
-    const m = hiResMatch || stdMatch;
-
-    if (m) {
-      const rawLlx = Number.parseFloat(m[1]);
-      const rawLly = Number.parseFloat(m[2]);
-      const rawUrx = Number.parseFloat(m[3]);
-      const rawUry = Number.parseFloat(m[4]);
-
-      if (
-        Number.isFinite(rawLlx) &&
-        Number.isFinite(rawLly) &&
-        Number.isFinite(rawUrx) &&
-        Number.isFinite(rawUry) &&
-        rawUrx - rawLlx > 10 &&
-        rawUry - rawLly > 10
-      ) {
-        const padX = Math.max(2, Math.min(8, (rawUrx - rawLlx) * 0.008));
-        const padY = Math.max(2, Math.min(8, (rawUry - rawLly) * 0.015));
-
-        llx = Math.max(0, rawLlx - padX);
-        lly = Math.max(0, rawLly - padY);
-        urx = Math.min(pageWidth, rawUrx + padX);
-        ury = Math.min(pageHeight, rawUry + padY);
-      }
-    }
-  } catch (err) {
-    console.warn('[PDF bbox fallback]', (err as Error).message);
-  }
-
-  const cropWidth = Math.max(10, urx - llx);
-  const cropHeight = Math.max(10, ury - lly);
-  const cropX = llx;
-  const cropY = Math.max(0, pageHeight - ury);
-  const trimmedRatio = 1 - (cropWidth * cropHeight) / Math.max(1, pageWidth * pageHeight);
-
-  return {
-    pageNumber: safePage,
-    pageWidth,
-    pageHeight,
-    llx,
-    lly,
-    urx,
-    ury,
-    cropX,
-    cropY,
-    cropWidth,
-    cropHeight,
-    trimmedRatio: Math.max(0, Math.min(1, trimmedRatio)),
-  };
-}
-
-/**
- * 100% Offline PDF Vector & Spatial Text Extractor.
- * Decodes native PDF text items with exact page coordinates AND native PDF vector
- * path operators (lines, polygons, triangles, circles/Beziers, stroke/fill colors)
- * into a lossless CadDocumentData structure so the deterministic CAD component and
- * topology engine processes vector PDFs identically to DWG/DXF drawings — zero AI or API keys!
- */
 function resolvePythonBinary(): string {
   const candidates = [
     process.env.PYTHON_PATH,
@@ -264,6 +163,87 @@ function resolvePythonBinary(): string {
     }
   }
   return 'python';
+}
+
+/**
+ * Computes the exact tight vector/raster ink bounding box (drawing border extent) of a PDF page
+ * using PyMuPDF (100% offline, native Python vector inspection, zero Ghostscript dependency).
+ * Trims blank outer margins while preserving a clean margin border.
+ */
+export async function getPdfPageContentBounds(
+  pdfPath: string,
+  pageNumber = 1
+): Promise<PdfContentBounds> {
+  const safePage = Math.max(1, Math.floor(pageNumber));
+
+  // 1. High-fidelity PyMuPDF ink bounds calculation (fast, accurate, no Ghostscript dependency)
+  try {
+    const pythonBin = resolvePythonBinary();
+    const workerScript = path.join(__dirname, 'pdfOcrWorker.py');
+    const { stdout } = await execFileAsync(
+      pythonBin,
+      [workerScript, pdfPath, String(safePage), '--bounds'],
+      { timeout: 10000, maxBuffer: 1024 * 1024 }
+    );
+    const parsed = JSON.parse(stdout.trim());
+    if (
+      parsed &&
+      typeof parsed.llx === 'number' &&
+      typeof parsed.urx === 'number' &&
+      typeof parsed.pageWidth === 'number' &&
+      typeof parsed.pageHeight === 'number'
+    ) {
+      const pageWidth = Math.max(1, parsed.pageWidth);
+      const pageHeight = Math.max(1, parsed.pageHeight);
+      const llx = Math.max(0, parsed.llx);
+      const lly = Math.max(0, parsed.lly);
+      const urx = Math.min(pageWidth, parsed.urx);
+      const ury = Math.min(pageHeight, parsed.ury);
+
+      const cropWidth = Math.max(10, urx - llx);
+      const cropHeight = Math.max(10, ury - lly);
+      const cropX = llx;
+      const cropY = Math.max(0, pageHeight - ury);
+      const trimmedRatio = 1 - (cropWidth * cropHeight) / Math.max(1, pageWidth * pageHeight);
+
+      return {
+        pageNumber: safePage,
+        pageWidth,
+        pageHeight,
+        llx,
+        lly,
+        urx,
+        ury,
+        cropX,
+        cropY,
+        cropWidth,
+        cropHeight,
+        trimmedRatio: Math.max(0, Math.min(1, trimmedRatio)),
+      };
+    }
+  } catch {
+    // If Python worker is temporarily unavailable, fall back cleanly to native PDF dimensions via pdfjs
+  }
+
+  // 2. Clean fallback to native PDF page dimensions via pdfjs-dist
+  const meta = await getPdfPageDimensions(pdfPath, safePage);
+  const pageWidth = Math.max(1, meta.pageWidth);
+  const pageHeight = Math.max(1, meta.pageHeight);
+
+  return {
+    pageNumber: safePage,
+    pageWidth,
+    pageHeight,
+    llx: 0,
+    lly: 0,
+    urx: pageWidth,
+    ury: pageHeight,
+    cropX: 0,
+    cropY: 0,
+    cropWidth: pageWidth,
+    cropHeight: pageHeight,
+    trimmedRatio: 0,
+  };
 }
 
 export async function extractPdfPageAsCadDocument(

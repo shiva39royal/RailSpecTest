@@ -15,10 +15,12 @@ import {
   Save,
   Search,
   SlidersHorizontal,
+  Train,
   Trash2,
   Type,
   X,
 } from 'lucide-react';
+import { StationLayoutSelector } from './StationLayoutSelector';
 import { KAVACH_SPEC_TABLES, KAVACH_TABLE_MAP } from '../spec/kavachSpecSchema';
 import {
   TABLE1_COMMON_MERGE_KEY_SET,
@@ -40,6 +42,7 @@ import type {
   CellFontFamily,
   DocumentMetadata,
   KavachTableId,
+  SavedProjectSummary,
   TableRowRecord,
   TextStyleProps,
   ValidationIssue,
@@ -55,6 +58,9 @@ interface GeneratedTablesWorkspaceProps {
   validationIssues: ValidationIssue[];
   focusedCell: { tableId: KavachTableId; rowId: string; columnKey: string } | null;
   onClearFocusedCell: () => void;
+  savedProjects?: SavedProjectSummary[];
+  currentProjectId?: string | null;
+  onLoadProject?: (projectId: string) => void;
   onUpdateCell: (
     tableId: KavachTableId,
     rowId: string,
@@ -98,6 +104,9 @@ export function GeneratedTablesWorkspace({
   onUpdateMetadata,
   onSaveAndValidate,
   isSaving,
+  savedProjects = [],
+  currentProjectId,
+  onLoadProject,
 }: GeneratedTablesWorkspaceProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'missing' | 'issues'>('all');
@@ -452,66 +461,104 @@ export function GeneratedTablesWorkspace({
     <div className="space-y-4">
       {/* Top Action Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-            Editable KAVACH Control & Profile Tables
-          </h1>
-          <p className="text-xs text-slate-600 mt-0.5">
-            Click any cell to edit directly · Dependent engineering calculations and RDSO validation update automatically.
-          </p>
+        <div className="flex items-center gap-4 flex-wrap">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              Editable KAVACH Control & Profile Tables
+            </h1>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Click any cell to edit directly · Dependent engineering calculations and RDSO validation update automatically.
+            </p>
+          </div>
+
+          {currentProjectId && (
+            <StationLayoutSelector
+              layouts={savedProjects}
+              selectedLayoutId={currentProjectId || null}
+              onSelectLayout={(id) => onLoadProject?.(id)}
+              placeholder="Select Station Layout..."
+            />
+          )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setIsEditingSheetBlocks((v) => !v)}
-            className={`px-3 py-2 text-xs font-semibold rounded-md border flex items-center gap-1.5 whitespace-nowrap transition-colors ${
-              isEditingSheetBlocks
-                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            <FileEdit className="w-3.5 h-3.5" />
-            {isEditingSheetBlocks ? 'Lock Header & Footer' : 'Edit Header & Footer'}
-          </button>
+        {currentProjectId && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setIsEditingSheetBlocks((v) => !v)}
+              className={`px-3 py-2 text-xs font-semibold rounded-md border flex items-center gap-1.5 whitespace-nowrap transition-colors ${
+                isEditingSheetBlocks
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <FileEdit className="w-3.5 h-3.5" />
+              {isEditingSheetBlocks ? 'Lock Header & Footer' : 'Edit Header & Footer'}
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setShowTableSelector((v) => !v)}
-            className={`px-3 py-2 text-xs font-medium rounded-md border flex items-center gap-1.5 whitespace-nowrap ${
-              showTableSelector
-                ? 'bg-slate-900 text-white border-slate-900'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            <CheckSquare className="w-3.5 h-3.5" />
-            Select Tables ({selectedTableIds.length}/{KAVACH_SPEC_TABLES.length})
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowTableSelector((v) => !v)}
+              className={`px-3 py-2 text-xs font-medium rounded-md border flex items-center gap-1.5 whitespace-nowrap ${
+                showTableSelector
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              Select Tables ({selectedTableIds.length}/{KAVACH_SPEC_TABLES.length})
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setShowMetaEditor((v) => !v)}
-            className={`px-3 py-2 text-xs font-medium rounded-md border flex items-center gap-1.5 whitespace-nowrap ${
-              showMetaEditor
-                ? 'bg-slate-900 text-white border-slate-900'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            Station Header & Global Params
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowMetaEditor((v) => !v)}
+              className={`px-3 py-2 text-xs font-medium rounded-md border flex items-center gap-1.5 whitespace-nowrap ${
+                showMetaEditor
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              Station Header & Global Params
+            </button>
 
-          <button
-            type="button"
-            onClick={onSaveAndValidate}
-            disabled={isSaving}
-            className="px-4 py-2 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 rounded-md flex items-center gap-1.5 whitespace-nowrap"
-          >
-            <Save className="w-3.5 h-3.5" />
-            {isSaving ? 'Saving & Validating...' : 'Save & Prepare Preview'}
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={onSaveAndValidate}
+              disabled={isSaving}
+              className="px-4 py-2 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 rounded-md flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {isSaving ? 'Saving & Validating...' : 'Save & Prepare Preview'}
+            </button>
+          </div>
+        )}
       </div>
+
+      {!currentProjectId ? (
+        <div className="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center max-w-xl mx-auto my-12 space-y-5 shadow-xs">
+          <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto border border-blue-200 shadow-2xs">
+            <Train className="w-8 h-8 text-blue-600" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+              No Station Layout Selected
+            </h2>
+            <p className="text-xs text-slate-500 mt-1.5 max-w-md mx-auto leading-relaxed">
+              Please choose a saved station layout from the dropdown below to load and edit its RDSO KAVACH Control &amp; Track Profile tables.
+            </p>
+          </div>
+          <div className="pt-2 flex justify-center">
+            <StationLayoutSelector
+              layouts={savedProjects}
+              selectedLayoutId={currentProjectId || null}
+              onSelectLayout={(id) => onLoadProject?.(id)}
+              placeholder="Select Station Layout..."
+            />
+          </div>
+        </div>
+      ) : (
+        <>
 
       {/* Collapsible Edit-Level Table Selection Panel */}
       {showTableSelector && (
@@ -822,6 +869,7 @@ export function GeneratedTablesWorkspace({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
@@ -2205,6 +2253,8 @@ export function GeneratedTablesWorkspace({
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

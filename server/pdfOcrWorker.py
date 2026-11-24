@@ -700,10 +700,85 @@ def process_pdf(pdf_path, page_num=1):
     }
     return result
 
+def get_pdf_bounds(pdf_path, page_num=1):
+    doc = pymupdf.open(pdf_path)
+    page_idx = max(0, min(page_num - 1, len(doc) - 1))
+    page = doc[page_idx]
+    pw = float(page.rect.width)
+    ph = float(page.rect.height)
+
+    x0_list, y0_list, x1_list, y1_list = [], [], [], []
+
+    # Vector drawings
+    for d in page.get_drawings():
+        r = d['rect']
+        x0_list.append(r.x0)
+        y0_list.append(r.y0)
+        x1_list.append(r.x1)
+        y1_list.append(r.y1)
+
+    # Text blocks
+    for b in page.get_text('blocks'):
+        x0_list.append(b[0])
+        y0_list.append(b[1])
+        x1_list.append(b[2])
+        y1_list.append(b[3])
+
+    # Images
+    try:
+        for img in page.get_images(full=True):
+            for r in page.get_image_rects(img[0]):
+                x0_list.append(r.x0)
+                y0_list.append(r.y0)
+                x1_list.append(r.x1)
+                y1_list.append(r.y1)
+    except Exception:
+        pass
+
+    if x0_list and x1_list:
+        raw_x0 = max(0.0, min(x0_list))
+        raw_y0 = max(0.0, min(y0_list))
+        raw_x1 = min(pw, max(x1_list))
+        raw_y1 = min(ph, max(y1_list))
+    else:
+        raw_x0, raw_y0, raw_x1, raw_y1 = 0.0, 0.0, pw, ph
+
+    # Convert to PDF user space (origin bottom-left, Y-up)
+    llx = raw_x0
+    lly = max(0.0, ph - raw_y1)
+    urx = raw_x1
+    ury = min(ph, ph - raw_y0)
+
+    # Small margin padding if tight ink borders found
+    if urx - llx > 10 and ury - lly > 10:
+        pad_x = max(2.0, min(8.0, (urx - llx) * 0.008))
+        pad_y = max(2.0, min(8.0, (ury - lly) * 0.015))
+        llx = max(0.0, llx - pad_x)
+        lly = max(0.0, lly - pad_y)
+        urx = min(pw, urx + pad_x)
+        ury = min(ph, ury + pad_y)
+
+    return {
+        'pageNumber': page_idx + 1,
+        'pageWidth': round(pw, 2),
+        'pageHeight': round(ph, 2),
+        'llx': round(llx, 2),
+        'lly': round(lly, 2),
+        'urx': round(urx, 2),
+        'ury': round(ury, 2),
+    }
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: python pdfOcrWorker.py <pdf_path> [page_num] [output_json_path]")
         sys.exit(1)
+
+    if '--bounds' in sys.argv:
+        pdf_path = sys.argv[1]
+        page_num = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else 1
+        bounds = get_pdf_bounds(pdf_path, page_num)
+        print(json.dumps(bounds, ensure_ascii=False))
+        return
         
     pdf_path = sys.argv[1]
     page_num = int(sys.argv[2]) if len(sys.argv) > 2 else 1

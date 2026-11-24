@@ -35,5 +35,42 @@
         }
       }
     }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_c038b719-624.pdf",
+    "drawing": {
+      "id": "drw_c038b719-624",
+      "fileName": "JANKAMPET JN.pdf",
+      "format": "PDF",
+      "sizeBytes": 4745130,
+      "uploadedAt": "2026-11-24T09:01:24.918Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated PDF signature (PDF 1.4).",
+        "Detected 1 PDF sheet. Tight drawing border: 1134×4414 pt."
+      ],
+      "pageCount": 1,
+      "fileUrl": "/api/drawings/drw_c038b719-624/file",
+      "pdfMetadata": {
+        "pageCount": 1,
+        "width": 1133.76,
+        "height": 4414.32,
+        "contentBounds": {
+          "pageNumber": 1,
+          "pageWidth": 1133.76,
+          "pageHeight": 4414.32,
+          "llx": 0,
+          "lly": 0,
+          "urx": 1133.76,
+          "ury": 4414.32,
+          "cropX": 0,
+          "cropY": 0,
+          "cropWidth": 1133.76,
+          "cropHeight": 4414.32,
+          "trimmedRatio": 0
+        }
+      }
+    }
   }
 ]

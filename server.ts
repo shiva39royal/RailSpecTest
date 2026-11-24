@@ -643,15 +643,14 @@ async function startServer() {
       if (!payload || typeof payload !== 'object') {
         return res.status(400).json({ error: 'Invalid project payload.' });
       }
-      // Strip heavy cadData entity arrays when writing workspace JSON (can be re-fetched via /api/drawings/:id/cad)
+      // Never store layout PDF/drawings in saved project JSON to eliminate memory consumption
       const storable: WorkspaceProject = {
         ...payload,
         id: projectId,
         updatedAt: new Date().toISOString(),
-        drawings: (payload.drawings || []).map((d) => ({
-          ...d,
-          cadData: undefined,
-        })),
+        drawings: [],
+        activeDrawingId: null,
+        activePageNumber: 1,
       };
       const targetPath = safeResolveInDir(PROJECTS_DIR, `${projectId}.json`);
       fs.writeFileSync(targetPath, JSON.stringify(storable, null, 2));

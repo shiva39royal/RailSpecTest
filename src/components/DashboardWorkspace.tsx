@@ -7,13 +7,11 @@ import {
   Database,
   FileCheck2,
   FolderOpen,
-  Plus,
   Square,
   Table2,
   Trash2,
-  Upload,
 } from 'lucide-react';
-import { KAVACH_SPEC_TABLES, SPEC_DOCUMENT_INFO } from '../spec/kavachSpecSchema';
+import { SPEC_DOCUMENT_INFO } from '../spec/kavachSpecSchema';
 import type { NavigationSection, SavedProjectSummary, WorkspaceProject } from '../types/project';
 
 interface DashboardWorkspaceProps {
@@ -38,14 +36,6 @@ export function DashboardWorkspace({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirmClearAll, setShowConfirmClearAll] = useState(false);
-
-  const totalRows = KAVACH_SPEC_TABLES.reduce(
-    (sum, t) => sum + (project.tables[t.id]?.length || 0),
-    0
-  );
-  const errorCount = project.validationIssues.filter((i) => i.severity === 'error').length;
-  const warningCount = project.validationIssues.filter((i) => i.severity === 'warning').length;
-  const hasDrawing = project.drawings.length > 0;
 
   const allSelected =
     savedProjects.length > 0 && selectedIds.length === savedProjects.length;
@@ -92,72 +82,11 @@ export function DashboardWorkspace({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            Railway Station Layout &amp; KAVACH Workspace
+            Station Layouts &amp; Datasets Dashboard
           </h1>
-          <p className="text-sm text-slate-600 mt-1">
-            {SPEC_DOCUMENT_INFO.code} ({SPEC_DOCUMENT_INFO.version} {SPEC_DOCUMENT_INFO.amendment}) · Dynamic DWG, DXF &amp; PDF extraction to official KAVACH Control &amp; Track Profile tables.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onNewProject}
-            className="px-3.5 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md whitespace-nowrap flex items-center gap-1.5 shadow-xs"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            New Station Workspace
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate('upload')}
-            className="px-4 py-2 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-md flex items-center gap-1.5 whitespace-nowrap shadow-xs"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            Upload Station Drawing
-          </button>
-        </div>
-      </div>
-
-      {/* Key Metrics Strip (Overall Details) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-xs">
-          <span className="text-xs text-slate-500">Active Station Context</span>
-          <p className="text-base font-bold text-slate-900 mt-1 truncate">
-            {project.metadata.stationName || project.name || 'Not Extracted Yet'}
-          </p>
-          <span className="text-xs font-mono tabular-nums text-slate-500">
-            {project.metadata.stationId ? `ID ${project.metadata.stationId}` : 'ID —'} · Ver {project.metadata.versionControl || '1.0.0'}
-          </span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-xs">
-          <span className="text-xs text-slate-500">Saved Layouts</span>
-          <p className="text-2xl font-bold font-mono tabular-nums text-slate-900 mt-0.5">
-            {savedProjects.length}
-          </p>
-          <span className="text-xs text-slate-500">Preserved offline datasets</span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-xs">
-          <span className="text-xs text-slate-500">Active Extracted Records</span>
-          <p className="text-2xl font-bold font-mono tabular-nums text-slate-900 mt-0.5">
-            {totalRows}
-          </p>
-          <span className="text-xs text-slate-500">
-            {project.components.length} components · {project.relationships.length} links
-          </span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-xs">
-          <span className="text-xs text-slate-500">Validation Audit</span>
-          <p className="text-2xl font-bold font-mono tabular-nums mt-0.5">
-            <span className={errorCount > 0 ? 'text-red-700' : 'text-emerald-700'}>{errorCount}</span>
-            <span className="text-slate-400 text-base font-normal"> err / </span>
-            <span className="text-amber-700">{warningCount}</span>
-            <span className="text-slate-400 text-base font-normal"> warn</span>
-          </p>
-          <span className="text-xs text-slate-500">RDSO Amdt-6 invariant checks</span>
+          {/* <p className="text-sm text-slate-600 mt-1">
+            {SPEC_DOCUMENT_INFO.code} ({SPEC_DOCUMENT_INFO.version} {SPEC_DOCUMENT_INFO.amendment}) · Preserved offline station layouts and extracted KAVACH datasets.
+          </p> */}
         </div>
       </div>
 
@@ -171,7 +100,7 @@ export function DashboardWorkspace({
                 Saved Station Layouts &amp; Extracted Datasets ({savedProjects.length})
               </h2>
               <p className="text-xs text-slate-500">
-                Extracted KAVACH tables and metadata are preserved offline. Click any layout name to directly open its Generated Tables.
+                Extracted KAVACH tables and metadata are preserved area. Click any layout name to directly open its Generated Tables.
               </p>
             </div>
           </div>
@@ -209,14 +138,6 @@ export function DashboardWorkspace({
             <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
               Upload a station drawing (DWG, DXF, or PDF) and run Dynamic Extraction. All extracted tables and metadata will be automatically preserved here so you can revisit and edit anytime without re-uploading.
             </p>
-            <button
-              type="button"
-              onClick={() => onNavigate('upload')}
-              className="mt-4 px-4 py-2 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-md inline-flex items-center gap-1.5 shadow-xs"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Upload Station Drawing
-            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">

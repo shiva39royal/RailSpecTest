@@ -13,6 +13,7 @@ import {
   Moon,
   Play,
   RotateCcw,
+  RotateCw,
   Sun,
   ZoomIn,
   ZoomOut,
@@ -67,6 +68,7 @@ export function DrawingViewer({
     const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
     const [viewportSize, setViewportSize] = useState<{ w: number; h: number }>({ w: 1000, h: 620 });
+    const [rotation, setRotation] = useState<number>(0);
 
     const panStartRef = useRef<{ mx: number; my: number; px: number; py: number }>({
       mx: 0,
@@ -331,28 +333,32 @@ export function DrawingViewer({
           const page = await pdf.getPage(safePage);
           if (cancelled) return;
 
-          const baseVp = page.getViewport({ scale: 1 });
-          const box: CropRect = pdfCropBox || {
-            pageWidth: baseVp.width,
-            pageHeight: baseVp.height,
+          const baseVp = page.getViewport({ scale: 1, rotation });
+          const isRot90or270 = rotation === 90 || rotation === 270;
+          const origBox: CropRect = pdfCropBox || {
+            pageWidth: page.getViewport({ scale: 1, rotation: 0 }).width,
+            pageHeight: page.getViewport({ scale: 1, rotation: 0 }).height,
             cropX: 0,
             cropY: 0,
-            cropWidth: baseVp.width,
-            cropHeight: baseVp.height,
+            cropWidth: page.getViewport({ scale: 1, rotation: 0 }).width,
+            cropHeight: page.getViewport({ scale: 1, rotation: 0 }).height,
             trimmedRatio: 0,
           };
+
+          const effectiveW = isRot90or270 ? origBox.cropHeight : origBox.cropWidth;
+          const effectiveH = isRot90or270 ? origBox.cropWidth : origBox.cropHeight;
 
           const viewW = Math.max(320, viewportSize.w);
           const viewH = Math.max(280, viewportSize.h);
           const pad = 20;
           const fitScale = Math.min(
-            (viewW - pad * 2) / Math.max(1, box.cropWidth),
-            (viewH - pad * 2) / Math.max(1, box.cropHeight)
+            (viewW - pad * 2) / Math.max(1, effectiveW),
+            (viewH - pad * 2) / Math.max(1, effectiveH)
           );
 
           const screenScale = fitScale * zoom;
-          const drawnW = box.cropWidth * screenScale;
-          const drawnH = box.cropHeight * screenScale;
+          const drawnW = effectiveW * screenScale;
+          const drawnH = effectiveH * screenScale;
           const drawOriginX = (viewW - drawnW) / 2 + pan.x;
           const drawOriginY = (viewH - drawnH) / 2 + pan.y;
 
@@ -395,11 +401,25 @@ export function DrawingViewer({
           ctx.clip();
 
           // Exact PDF.js viewport mapping cropped PDF region onto visible canvas pixels at native DPI
+          let rotCropX = origBox.cropX;
+          let rotCropY = origBox.cropY;
+          if (rotation === 90) {
+            rotCropX = origBox.cropY;
+            rotCropY = origBox.pageWidth - (origBox.cropX + origBox.cropWidth);
+          } else if (rotation === 180) {
+            rotCropX = origBox.pageWidth - (origBox.cropX + origBox.cropWidth);
+            rotCropY = origBox.pageHeight - (origBox.cropY + origBox.cropHeight);
+          } else if (rotation === 270) {
+            rotCropX = origBox.pageHeight - (origBox.cropY + origBox.cropHeight);
+            rotCropY = origBox.cropX;
+          }
+
           const renderScale = screenScale * dpr;
-          const offsetX = (drawOriginX - box.cropX * screenScale) * dpr;
-          const offsetY = (drawOriginY - box.cropY * screenScale) * dpr;
+          const offsetX = (drawOriginX - rotCropX * screenScale) * dpr;
+          const offsetY = (drawOriginY - rotCropY * screenScale) * dpr;
           const viewport = page.getViewport({
             scale: renderScale,
+            rotation,
             offsetX,
             offsetY,
           });
@@ -438,7 +458,7 @@ export function DrawingViewer({
           window.clearTimeout(renderDebounceRef.current);
         }
       };
-    }, [drawing, pageNumber, zoom, pan, viewportSize, pdfCropBox, pdfLoading, isPanning]);
+    }, [drawing, pageNumber, zoom, pan, viewportSize, pdfCropBox, pdfLoading, isPanning, rotation]);
 
     // Render DWG / DXF CAD entities onto high-DPI HTML5 Canvas with exact aspect ratio & layers up to 5500%
     const renderCadCanvas = useCallback(
@@ -464,6 +484,11 @@ export function DrawingViewer({
         const isDark = forceLightBg ? false : cadDarkBg;
         ctx.save();
         ctx.scale(dpr, dpr);
+        if (rotation !== 0) {
+          ctx.translate(widthCss / 2, heightCss / 2);
+          ctx.rotate((rotation * Math.PI) / 180);
+          ctx.translate(-widthCss / 2, -heightCss / 2);
+        }
         ctx.fillStyle = isDark ? '#0B1220' : '#FFFFFF';
         ctx.fillRect(0, 0, widthCss, heightCss);
 
@@ -801,9 +826,9 @@ export function DrawingViewer({
         <div className="flex flex-col items-center justify-center h-full min-h-[520px] bg-white border border-slate-200 rounded-lg p-10 text-center">
           <FileWarning className="w-10 h-10 text-slate-400 mb-3" />
           <h2 className="text-lg font-semibold text-slate-900">No Railway Layout Drawing Loaded</h2>
-          <p className="text-sm text-slate-600 max-w-md mt-1.5">
+          {/* <p className="text-sm text-slate-600 max-w-md mt-1.5">
             Upload a railway station layout in DWG, DXF, or PDF format to inspect every layer, track, signal, and RFID tag at full border-fitted precision up to 5500% zoom.
-          </p>
+          </p> */}
           <button
             type="button"
             onClick={onNavigateUpload}
@@ -927,6 +952,31 @@ export function DrawingViewer({
                 <Maximize2 className="w-3.5 h-3.5" />
                 Fit
               </button>
+              <div className="flex items-center gap-0.5 border-l border-slate-300 pl-1 ml-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRotation((r) => (r + 270) % 360);
+                    resetView();
+                  }}
+                  className="p-1 rounded text-slate-700 hover:bg-slate-200/70"
+                  title="Rotate 90° Counter-Clockwise"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRotation((r) => (r + 90) % 360);
+                    resetView();
+                  }}
+                  className="px-1.5 py-1 text-xs font-mono font-medium text-slate-700 hover:bg-slate-200/70 rounded flex items-center gap-1 whitespace-nowrap"
+                  title="Rotate 90° Clockwise"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                  <span>{rotation !== 0 ? `${rotation}°` : 'Rotate'}</span>
+                </button>
+              </div>
               {[500, 1500, 3000, 5500].map((pct) => (
                 <button
                   key={pct}

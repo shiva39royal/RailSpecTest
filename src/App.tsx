@@ -7,6 +7,8 @@ import {
   FileCheck2,
   GitBranch,
   LayoutDashboard,
+  PanelLeftClose,
+  PanelLeftOpen,
   Play,
   Save,
   Settings,
@@ -30,11 +32,8 @@ import { DashboardWorkspace } from './components/DashboardWorkspace';
 import { UploadWorkspace } from './components/UploadWorkspace';
 import { DrawingViewer } from './components/DrawingViewer';
 import { ExtractionWorkspace } from './components/ExtractionWorkspace';
-import { ComponentsWorkspace } from './components/ComponentsWorkspace';
 import { GeneratedTablesWorkspace } from './components/GeneratedTablesWorkspace';
-import { ValidationWorkspace } from './components/ValidationWorkspace';
 import { FinalPreviewWorkspace } from './components/FinalPreviewWorkspace';
-import { ExportWorkspace } from './components/ExportWorkspace';
 import { SettingsWorkspace } from './components/SettingsWorkspace';
 import type {
   CadDocumentData,
@@ -53,6 +52,7 @@ import type {
 } from './types/project';
 
 const LOCAL_STORAGE_KEY = 'railspec_kavach_active_workspace_v1';
+const SIDEBAR_COLLAPSED_KEY = 'railspec_sidebar_collapsed';
 
 function createInitialProject(): WorkspaceProject {
   const now = new Date().toISOString();
@@ -96,11 +96,8 @@ const NAV_ITEMS: Array<{
     { id: 'upload', label: 'Upload Drawings', icon: Upload },
     { id: 'viewer', label: 'Drawing Viewer', icon: Eye },
     { id: 'extraction', label: 'Extraction', icon: Cpu },
-    { id: 'components', label: 'Extracted Components', icon: GitBranch },
     { id: 'tables', label: 'Generated Tables', icon: Table2 },
-    { id: 'validation', label: 'Data Validation', icon: ShieldCheck },
     { id: 'preview', label: 'Final Preview', icon: FileCheck2 },
-    { id: 'export', label: 'Export & Downloads', icon: Download },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -140,6 +137,56 @@ export default function App() {
     null
   );
   const [savedProjects, setSavedProjects] = useState<SavedProjectSummary[]>([]);
+  const [selectedStationLayoutId, setSelectedStationLayoutId] = useState<string | null>(null);
+  const [extractionSubTab, setExtractionSubTab] = useState<'engine' | 'components' | 'validation'>('engine');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Persist sidebar state & support Ctrl+B keyboard shortcut to toggle
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(isSidebarCollapsed));
+    } catch {
+      // ignore
+    }
+  }, [isSidebarCollapsed]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
+        const target = e.target as HTMLElement;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+          return;
+        }
+        e.preventDefault();
+        setIsSidebarCollapsed((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleNavigate = useCallback((section: NavigationSection) => {
+    if (section === 'components') {
+      setExtractionSubTab('components');
+      setActiveNav('extraction');
+    } else if (section === 'validation') {
+      setExtractionSubTab('validation');
+      setActiveNav('extraction');
+    } else if (section === 'export') {
+      setActiveNav('preview');
+    } else {
+      if (section === 'tables' || section === 'preview') {
+        setSelectedStationLayoutId(null);
+      }
+      setActiveNav(section);
+    }
+  }, []);
 
   const drawingFilesRef = useRef<Map<string, File>>(new Map());
 
@@ -452,6 +499,7 @@ export default function App() {
       };
 
       setProject(extractedProject);
+      setSelectedStationLayoutId(targetId);
 
       // Auto-persist extracted dataset so user can revisit without re-uploading
       try {
@@ -460,7 +508,7 @@ export default function App() {
           () => ({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(extractedProject),
+            body: JSON.stringify({ ...extractedProject, drawings: [] }),
           }),
           { fallbackError: 'Failed to auto-save extracted workspace' }
         );
@@ -820,6 +868,7 @@ export default function App() {
     } catch {
       // ignore
     }
+    setSelectedStationLayoutId(null);
     setProject(createInitialProject());
     setStages(createInitialStages());
     setMissingCompanionInfo([]);
@@ -844,7 +893,19 @@ export default function App() {
           data.project.metadata,
           data.project.settings
         );
-        setProject({ ...data.project, tables, validationIssues });
+        setSelectedStationLayoutId(projectId);
+        setProject((prev) => ({
+          ...prev,
+          id: data.project.id,
+          name: data.project.name,
+          updatedAt: data.project.updatedAt,
+          isSavedForPreview: data.project.isSavedForPreview,
+          lastSavedAt: data.project.lastSavedAt,
+          metadata: data.project.metadata,
+          tables,
+          validationIssues,
+          settings: data.project.settings,
+        }));
         setActiveNav(targetNav);
         showToast(`Loaded workspace "${data.project.metadata?.stationName || data.project.name}".`, 'success');
       } catch (err) {
@@ -964,91 +1025,129 @@ export default function App() {
   );
 
   const errorCount = project.validationIssues.filter((i) => i.severity === 'error').length;
-  const activeNavMeta = NAV_ITEMS.find((n) => n.id === activeNav)!;
+  const activeNavMeta = NAV_ITEMS.find((n) => n.id === activeNav) || NAV_ITEMS[0];
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 text-slate-900">
       {/* Persistent Left-Side Engineering Navigation Rail */}
-      <aside className="w-64 bg-[#0F172A] text-slate-200 flex flex-col shrink-0 border-r border-slate-800 no-print">
-        <button
-          type="button"
-          onClick={handleReloadFreshUpload}
-          className="h-14 px-5 flex items-center gap-2.5 border-b border-slate-800 shrink-0 w-full text-left hover:bg-slate-800/60 transition-colors group cursor-pointer"
-          title="X-Tractor Home — Click to start fresh upload / reload"
-        >
-          <TrainTrack className="w-5 h-5 text-blue-400 group-hover:scale-105 transition-transform shrink-0" />
-          <div className="flex flex-col min-w-0">
-            <span className="font-bold text-sm tracking-tight text-white whitespace-nowrap truncate">
-              X-Tractor
-            </span>
-            <span className="text-[10px] text-slate-400 group-hover:text-blue-300">
-              Click for fresh upload
-            </span>
-          </div>
-        </button>
+      <aside
+        className={`bg-[#0F172A] text-slate-200 flex flex-col shrink-0 border-r border-slate-800 no-print transition-all duration-200 ease-in-out ${
+          isSidebarCollapsed
+            ? 'w-0 overflow-hidden border-r-0 opacity-0 pointer-events-none'
+            : 'w-64 opacity-100'
+        }`}
+      >
+        <div className="h-16 px-4 flex items-center justify-between border-b border-slate-800 shrink-0 w-full">
+          <button
+            type="button"
+            onClick={handleReloadFreshUpload}
+            className="flex flex-col justify-center text-left hover:opacity-90 transition-opacity group cursor-pointer"
+            title="X-Tractor Home — Click to start fresh upload / reload"
+          >
+            <div className="flex items-baseline leading-none tracking-tight">
+              <span className="text-[26px] font-black text-emerald-400">X</span>
+              <span className="text-[18px] font-normal text-white">-Tractor</span>
+            </div>
+            {/* Horizontal railway track directly under the name */}
+            <svg className="w-20 h-1.5 mt-1" viewBox="0 0 72 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <line x1="0" y1="1" x2="72" y2="1" stroke="#475569" strokeWidth="1" strokeLinecap="round" />
+              <line x1="0" y1="5" x2="72" y2="5" stroke="#475569" strokeWidth="1" strokeLinecap="round" />
+              {[4, 12, 20, 28, 36, 44, 52, 60, 68].map((x) => (
+                <line key={x} x1={x} y1="0" x2={x} y2="6" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" />
+              ))}
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsSidebarCollapsed(true)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            title="Hide Sidebar (Ctrl+B)"
+            aria-label="Hide Sidebar"
+          >
+            <PanelLeftClose className="w-4 h-4" />
+          </button>
+        </div>
 
         {/* Navigation Links */}
         <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = activeNav === item.id;
-            let countLabel = '';
-            if (item.id === 'upload' && project.drawings.length > 0) {
-              countLabel = String(project.drawings.length);
-            } else if (item.id === 'components' && project.components.length > 0) {
-              countLabel = String(project.components.length);
-            } else if (item.id === 'validation' && project.validationIssues.length > 0) {
-              countLabel = String(project.validationIssues.length);
-            }
 
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveNav(item.id)}
-                className={`w-full px-3 py-2 rounded-md text-xs font-medium flex items-center justify-between gap-2 transition-colors whitespace-nowrap ${isActive
+                onClick={() => handleNavigate(item.id)}
+                className={`w-full px-3 py-2 rounded-md text-xs font-medium flex items-center gap-2.5 transition-colors whitespace-nowrap ${isActive
                   ? 'bg-blue-700 text-white font-semibold'
                   : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                   }`}
               >
-                <span className="flex items-center gap-2.5 min-w-0">
-                  <Icon className="w-4 h-4 shrink-0 opacity-90" />
-                  <span className="truncate">{item.label}</span>
-                </span>
-                {countLabel && (
-                  <span
-                    className={`font-mono tabular-nums text-[11px] ${isActive
-                      ? 'text-blue-100'
-                      : item.id === 'validation' && errorCount > 0
-                        ? 'text-amber-400'
-                        : 'text-slate-400'
-                      }`}
-                  >
-                    {countLabel}
-                  </span>
-                )}
+                <Icon className="w-4 h-4 shrink-0 opacity-90" />
+                <span className="truncate">{item.label}</span>
               </button>
             );
           })}
         </nav>
+
+        {/* Bottom Sidebar Collapse Action */}
+        <div className="p-3 border-t border-slate-800 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsSidebarCollapsed(true)}
+            className="w-full px-3 py-2 rounded-md text-xs font-medium flex items-center gap-2.5 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer"
+            title="Hide Sidebar for wider workspace (Ctrl+B)"
+          >
+            <PanelLeftClose className="w-4 h-4 shrink-0" />
+            <span className="truncate">Hide Sidebar</span>
+          </button>
+        </div>
       </aside>
 
       {/* Main Content Shell */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Clean Contextual Top Bar */}
-        <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between gap-6 shrink-0 no-print">
-          <div className="flex items-center gap-2 text-xs text-slate-500 min-w-0">
-            <span className="font-semibold text-slate-900 whitespace-nowrap">
-              {project.metadata.stationName || project.name}
-            </span>
-            <span aria-hidden="true">/</span>
-            <span className="text-slate-700 font-medium whitespace-nowrap truncate">
-              {activeNavMeta.label}
+        <header className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between gap-4 shrink-0 no-print">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Toggle Sidebar Button */}
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+              className="p-1.5 -ml-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors flex items-center justify-center shrink-0 border border-slate-200 shadow-2xs cursor-pointer"
+              title={isSidebarCollapsed ? 'Show Sidebar (Ctrl+B)' : 'Hide Sidebar (Ctrl+B)'}
+              aria-label={isSidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'}
+            >
+              {isSidebarCollapsed ? (
+                <PanelLeftOpen className="w-4 h-4 text-blue-700" />
+              ) : (
+                <PanelLeftClose className="w-4 h-4 text-slate-600" />
+              )}
+            </button>
+
+            {/* X-Tractor logo with green bold X and horizontal track under */}
+            <div className="flex flex-col items-start leading-none shrink-0">
+              <div className="flex items-baseline tracking-tight">
+                <span className="text-[26px] font-black text-emerald-600">X</span>
+                <span className="text-[18px] font-normal text-black">-Tractor</span>
+              </div>
+              {/* Horizontal railway track directly under the name */}
+              <svg className="w-20 h-1.5 mt-0.5" viewBox="0 0 72 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <line x1="0" y1="1" x2="72" y2="1" stroke="#334155" strokeWidth="1" strokeLinecap="round" />
+                <line x1="0" y1="5" x2="72" y2="5" stroke="#334155" strokeWidth="1" strokeLinecap="round" />
+                {[4, 12, 20, 28, 36, 44, 52, 60, 68].map((x) => (
+                  <line key={x} x1={x} y1="0" x2={x} y2="6" stroke="#475569" strokeWidth="1.5" strokeLinecap="round" />
+                ))}
+              </svg>
+            </div>
+            <span className="text-slate-300 font-light text-base" aria-hidden="true">/</span>
+            <span className="text-slate-800 font-semibold text-xs whitespace-nowrap truncate">
+              {activeNavMeta?.label || activeNav}
             </span>
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
-            {activeDrawing && activeNav !== 'extraction' && activeNav !== 'viewer' && activeNav !== 'tables' && (
+            {activeDrawing && activeNav !== 'extraction' && activeNav !== 'viewer' && activeNav !== 'tables' && activeNav !== 'preview' && (
               <button
                 type="button"
                 onClick={handleStartExtraction}
@@ -1063,7 +1162,8 @@ export default function App() {
               activeNav !== 'upload' &&
               activeNav !== 'viewer' &&
               activeNav !== 'extraction' &&
-              activeNav !== 'components' && (
+              activeNav !== 'tables' &&
+              activeNav !== 'preview' && (
                 <button
                   type="button"
                   onClick={() => handleSaveAndValidate(true)}
@@ -1090,7 +1190,7 @@ export default function App() {
               onStartExtraction={handleStartExtraction}
               extractionRunning={project.extractionStatus === 'running'}
               onHydrateCadData={handleHydrateCadData}
-              onNavigateUpload={() => setActiveNav('upload')}
+              onNavigateUpload={() => handleNavigate('upload')}
             />
           </div>
 
@@ -1098,7 +1198,7 @@ export default function App() {
             <DashboardWorkspace
               project={project}
               savedProjects={savedProjects}
-              onNavigate={setActiveNav}
+              onNavigate={handleNavigate}
               onLoadProject={handleLoadProject}
               onNewProject={handleReloadFreshUpload}
               onDeleteProjects={handleDeleteProjects}
@@ -1125,15 +1225,21 @@ export default function App() {
               pageScopeText={pageScopeText}
               onPageScopeChange={setPageScopeText}
               onStartExtraction={handleStartExtraction}
-              onNavigate={setActiveNav}
-            />
-          )}
-
-          {activeNav === 'components' && (
-            <ComponentsWorkspace
-              components={project.components}
-              relationships={project.relationships}
-              onNavigate={setActiveNav}
+              onNavigate={handleNavigate}
+              subTab={extractionSubTab}
+              onSubTabChange={setExtractionSubTab}
+              onRevalidate={() => {
+                const { tables, validationIssues } = applyRecalcAndValidate(
+                  project.tables,
+                  project.metadata,
+                  project.settings
+                );
+                setProject((prev) => ({ ...prev, tables, validationIssues }));
+                showToast(`Validation refreshed: ${validationIssues.length} item(s) checked.`, 'info');
+              }}
+              onJumpToIssue={handleJumpToIssue}
+              onApplySuggestedFix={handleApplySuggestedFix}
+              onSaveAndPreview={() => handleSaveAndValidate(true)}
             />
           )}
 
@@ -1157,24 +1263,9 @@ export default function App() {
               onUpdateMetadata={handleUpdateMetadata}
               onSaveAndValidate={() => handleSaveAndValidate(true)}
               isSaving={isSaving}
-            />
-          )}
-
-          {activeNav === 'validation' && (
-            <ValidationWorkspace
-              issues={project.validationIssues}
-              onRevalidate={() => {
-                const { tables, validationIssues } = applyRecalcAndValidate(
-                  project.tables,
-                  project.metadata,
-                  project.settings
-                );
-                setProject((prev) => ({ ...prev, tables, validationIssues }));
-                showToast(`Validation refreshed: ${validationIssues.length} item(s) checked.`, 'info');
-              }}
-              onJumpToIssue={handleJumpToIssue}
-              onApplySuggestedFix={handleApplySuggestedFix}
-              onSaveAndPreview={() => handleSaveAndValidate(true)}
+              savedProjects={savedProjects}
+              currentProjectId={selectedStationLayoutId}
+              onLoadProject={(id) => handleLoadProject(id, 'tables')}
             />
           )}
 
@@ -1193,27 +1284,9 @@ export default function App() {
               }}
               onUpdateRevisions={handleUpdateRevisions}
               onSaveWorkspace={() => handleSaveAndValidate(false)}
-            />
-          )}
-
-          {activeNav === 'export' && (
-            <ExportWorkspace
-              project={project}
-              selectedTableIds={selectedTableIds}
-              onChangeSelectedTables={handleChangeSelectedTables}
-              onExportPdf={(selected) => {
-                exportKavachToPdf(project, selected);
-                showToast('Downloaded RDSO PDF documentation package.', 'success');
-              }}
-              onExportExcel={async (selected) => {
-                await exportKavachToExcel(project, selected);
-                showToast('Downloaded formatted Excel (.xlsx) workbook.', 'success');
-              }}
-              onExportJson={() => {
-                exportKavachToJson(project);
-                showToast('Downloaded structured KAVACH JSON dataset.', 'success');
-              }}
-              onSaveWorkspace={() => handleSaveAndValidate(false)}
+              savedProjects={savedProjects}
+              currentProjectId={selectedStationLayoutId}
+              onLoadProject={(id) => handleLoadProject(id, 'preview')}
             />
           )}
 

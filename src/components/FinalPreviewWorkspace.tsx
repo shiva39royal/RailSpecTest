@@ -7,13 +7,15 @@ import {
   FileSpreadsheet,
   Plus,
   Printer,
+  Train,
   Trash2,
 } from 'lucide-react';
+import { StationLayoutSelector } from './StationLayoutSelector';
 import { KAVACH_SPEC_TABLES, KAVACH_TABLE_MAP } from '../spec/kavachSpecSchema';
 import { getTable1MergeGroups, getTable1PreviewSpan } from '../engine/kavachEngine';
 import { renderFormattedText } from '../utils/cellFormatting';
 import { generateKavachPdfBlob } from '../utils/exportEngine';
-import type { KavachTableId, RevisionEntry, TableRowRecord, WorkspaceProject } from '../types/project';
+import type { KavachTableId, RevisionEntry, SavedProjectSummary, TableRowRecord, WorkspaceProject } from '../types/project';
 
 interface FinalPreviewWorkspaceProps {
   project: WorkspaceProject;
@@ -23,6 +25,9 @@ interface FinalPreviewWorkspaceProps {
   onExportExcel: (selectedTables: KavachTableId[]) => void;
   onUpdateRevisions: (revisions: RevisionEntry[]) => void;
   onSaveWorkspace: () => void;
+  savedProjects?: SavedProjectSummary[];
+  currentProjectId?: string | null;
+  onLoadProject?: (projectId: string) => void;
 }
 
 export function FinalPreviewWorkspace({
@@ -33,6 +38,9 @@ export function FinalPreviewWorkspace({
   onExportExcel,
   onUpdateRevisions,
   onSaveWorkspace,
+  savedProjects = [],
+  currentProjectId,
+  onLoadProject,
 }: FinalPreviewWorkspaceProps) {
   const [activePreviewTableId, setActivePreviewTableId] = useState<KavachTableId>(
     selectedTableIds[0] || 'table1_control'
@@ -138,66 +146,78 @@ export function FinalPreviewWorkspace({
     <div className="space-y-5">
       {/* Preview Action Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 no-print">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-            Final Document Preview — RDSO Engineering Sheet Format
-          </h1>
-          <p className="text-xs text-slate-600 mt-0.5">
-            {project.isSavedForPreview
-              ? `Reflects user-approved dataset saved ${project.lastSavedAt ? new Date(project.lastSavedAt).toLocaleTimeString() : ''}.`
-              : 'Preview reflects live edits. Click Save to finalize before exporting official PDF/Excel deliverables.'}
-          </p>
+        <div className="flex items-center gap-4 flex-wrap">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              Final Document Preview — RDSO Engineering Sheet Format
+            </h1>
+            <p className="text-xs text-slate-600 mt-0.5">
+              {project.isSavedForPreview
+                ? `Reflects user-approved dataset saved ${project.lastSavedAt ? new Date(project.lastSavedAt).toLocaleTimeString() : ''}.`
+                : 'Preview reflects live edits. Click Save to finalize before exporting official PDF/Excel deliverables.'}
+            </p>
+          </div>
+
+          {currentProjectId && (
+            <StationLayoutSelector
+              layouts={savedProjects}
+              selectedLayoutId={currentProjectId || null}
+              onSelectLayout={(id) => onLoadProject?.(id)}
+              placeholder="Select Station Layout..."
+            />
+          )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setShowTableSelector((v) => !v)}
-            className={`px-3 py-2 text-xs font-medium rounded-md border flex items-center gap-1.5 whitespace-nowrap ${
-              showTableSelector
-                ? 'bg-slate-900 text-white border-slate-900'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            <CheckSquare className="w-3.5 h-3.5" />
-            Select Tables ({selectedTableIds.length}/{KAVACH_SPEC_TABLES.length})
-          </button>
-          {!project.isSavedForPreview && (
+        {currentProjectId && (
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={onSaveWorkspace}
-              className="px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-md whitespace-nowrap"
+              onClick={() => setShowTableSelector((v) => !v)}
+              className={`px-3 py-2 text-xs font-medium rounded-md border flex items-center gap-1.5 whitespace-nowrap ${
+                showTableSelector
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
             >
-              Save Final Dataset
+              <CheckSquare className="w-3.5 h-3.5" />
+              Select Tables ({selectedTableIds.length}/{KAVACH_SPEC_TABLES.length})
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="px-3 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md flex items-center gap-1.5 whitespace-nowrap"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            Print Sheet
-          </button>
-          <button
-            type="button"
-            onClick={() => onExportExcel(selectedTableIds)}
-            className="px-3.5 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-md flex items-center gap-1.5 whitespace-nowrap"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            Download Excel (.xlsx)
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const blob = generateKavachPdfBlob(project, selectedTableIds);
-              const url = URL.createObjectURL(blob);
-              window.open(url, '_blank');
-            }}
-            className="px-3.5 py-2 text-xs font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-md flex items-center gap-1.5 whitespace-nowrap"
-            title="Preview generated PDF directly in browser"
-          >
-            <Eye className="w-3.5 h-3.5" />
+            {!project.isSavedForPreview && (
+              <button
+                type="button"
+                onClick={onSaveWorkspace}
+                className="px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-md whitespace-nowrap"
+              >
+                Save Final Dataset
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="px-3 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Print Sheet
+            </button>
+            <button
+              type="button"
+              onClick={() => onExportExcel(selectedTableIds)}
+              className="px-3.5 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-md flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Download Excel (.xlsx)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const blob = generateKavachPdfBlob(project, selectedTableIds);
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+              }}
+              className="px-3.5 py-2 text-xs font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-md flex items-center gap-1.5 whitespace-nowrap"
+              title="Preview generated PDF directly in browser"
+            >
+              <Eye className="w-3.5 h-3.5" />
             Preview PDF
           </button>
           <button
@@ -209,7 +229,33 @@ export function FinalPreviewWorkspace({
             Download PDF Package
           </button>
         </div>
+        )}
       </div>
+
+      {!currentProjectId ? (
+        <div className="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center max-w-xl mx-auto my-12 space-y-5 shadow-xs">
+          <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto border border-blue-200 shadow-2xs">
+            <Train className="w-8 h-8 text-blue-600" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+              No Station Layout Selected for Preview
+            </h2>
+            <p className="text-xs text-slate-500 mt-1.5 max-w-md mx-auto leading-relaxed">
+              Please choose a saved station layout from the dropdown below to view, audit, and export its official RDSO engineering documentation sheet.
+            </p>
+          </div>
+          <div className="pt-2 flex justify-center">
+            <StationLayoutSelector
+              layouts={savedProjects}
+              selectedLayoutId={currentProjectId || null}
+              onSelectLayout={(id) => onLoadProject?.(id)}
+              placeholder="Select Station Layout..."
+            />
+          </div>
+        </div>
+      ) : (
+        <>
 
       {/* Preview-Level Table Selection Panel */}
       {showTableSelector && (
@@ -716,6 +762,8 @@ export function FinalPreviewWorkspace({
           </tbody>
         </table>
       </div>
+        </>
+      )}
     </div>
   );
 }
