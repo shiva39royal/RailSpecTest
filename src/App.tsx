@@ -91,17 +91,17 @@ const NAV_ITEMS: Array<{
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'upload', label: 'Upload Drawings', icon: Upload },
-  { id: 'viewer', label: 'Drawing Viewer', icon: Eye },
-  { id: 'extraction', label: 'Extraction', icon: Cpu },
-  { id: 'components', label: 'Extracted Components', icon: GitBranch },
-  { id: 'tables', label: 'Generated Tables', icon: Table2 },
-  { id: 'validation', label: 'Data Validation', icon: ShieldCheck },
-  { id: 'preview', label: 'Final Preview', icon: FileCheck2 },
-  { id: 'export', label: 'Export & Downloads', icon: Download },
-  { id: 'settings', label: 'Settings', icon: Settings },
-];
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'upload', label: 'Upload Drawings', icon: Upload },
+    { id: 'viewer', label: 'Drawing Viewer', icon: Eye },
+    { id: 'extraction', label: 'Extraction', icon: Cpu },
+    { id: 'components', label: 'Extracted Components', icon: GitBranch },
+    { id: 'tables', label: 'Generated Tables', icon: Table2 },
+    { id: 'validation', label: 'Data Validation', icon: ShieldCheck },
+    { id: 'preview', label: 'Final Preview', icon: FileCheck2 },
+    { id: 'export', label: 'Export & Downloads', icon: Download },
+    { id: 'settings', label: 'Settings', icon: Settings },
+  ];
 
 export default function App() {
   const [activeNav, setActiveNav] = useState<NavigationSection>('dashboard');
@@ -182,7 +182,7 @@ export default function App() {
     // Silently warm up backend container whenever user returns to an idle tab
     const pingHealth = () => {
       if (document.visibilityState === 'hidden') return;
-      fetch('/api/health', { method: 'GET', cache: 'no-store', credentials: 'same-origin' }).catch(() => {});
+      fetch('/api/health', { method: 'GET', cache: 'no-store', credentials: 'same-origin' }).catch(() => { });
     };
     pingHealth();
     window.addEventListener('focus', pingHealth);
@@ -853,11 +853,10 @@ export default function App() {
                 key={item.id}
                 type="button"
                 onClick={() => setActiveNav(item.id)}
-                className={`w-full px-3 py-2 rounded-md text-xs font-medium flex items-center justify-between gap-2 transition-colors whitespace-nowrap ${
-                  isActive
-                    ? 'bg-blue-700 text-white font-semibold'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                }`}
+                className={`w-full px-3 py-2 rounded-md text-xs font-medium flex items-center justify-between gap-2 transition-colors whitespace-nowrap ${isActive
+                  ? 'bg-blue-700 text-white font-semibold'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  }`}
               >
                 <span className="flex items-center gap-2.5 min-w-0">
                   <Icon className="w-4 h-4 shrink-0 opacity-90" />
@@ -865,13 +864,12 @@ export default function App() {
                 </span>
                 {countLabel && (
                   <span
-                    className={`font-mono tabular-nums text-[11px] ${
-                      isActive
-                        ? 'text-blue-100'
-                        : item.id === 'validation' && errorCount > 0
-                          ? 'text-amber-400'
-                          : 'text-slate-400'
-                    }`}
+                    className={`font-mono tabular-nums text-[11px] ${isActive
+                      ? 'text-blue-100'
+                      : item.id === 'validation' && errorCount > 0
+                        ? 'text-amber-400'
+                        : 'text-slate-400'
+                      }`}
                   >
                     {countLabel}
                   </span>
@@ -1086,13 +1084,12 @@ export default function App() {
       {/* Non-intrusive Toast Notification */}
       {toast && (
         <div
-          className={`fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-md shadow-lg border text-xs font-medium flex items-center gap-2 max-w-md no-print ${
-            toast.tone === 'error'
-              ? 'bg-red-950 text-red-50 border-red-800'
-              : toast.tone === 'success'
-                ? 'bg-emerald-950 text-emerald-50 border-emerald-800'
-                : 'bg-slate-900 text-slate-50 border-slate-700'
-          }`}
+          className={`fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-md shadow-lg border text-xs font-medium flex items-center gap-2 max-w-md no-print ${toast.tone === 'error'
+            ? 'bg-red-950 text-red-50 border-red-800'
+            : toast.tone === 'success'
+              ? 'bg-emerald-950 text-emerald-50 border-emerald-800'
+              : 'bg-slate-900 text-slate-50 border-slate-700'
+            }`}
         >
           {toast.tone === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
           <span>{toast.message}</span>
