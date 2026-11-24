@@ -495,10 +495,12 @@ export async function runDynamicExtraction(
 
     if (compRows.length > 0) {
       baseTables[t.id] = compRows;
+    } else if (cadRows.length > 0) {
+      baseTables[t.id] = cadRows;
     } else if (directTocRows.length > 0) {
       baseTables[t.id] = directTocRows;
     } else {
-      baseTables[t.id] = cadRows;
+      baseTables[t.id] = [];
     }
   }
 

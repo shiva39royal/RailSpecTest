@@ -262,6 +262,18 @@ export interface DocumentMetadata {
   rdsoApprover2: string;
   rdsoApprover3: string;
   finalApprover: string;
+  // Customizable Titles / Labels for Approval and Header Blocks (apply across all sheets)
+  titlePreparedBy?: string;
+  titleCheckedBy?: string;
+  titleApprovedBy?: string;
+  titleSignalTelecom?: string;
+  titleKavach?: string;
+  titleRailwayHq1?: string;
+  titleRailwayHq2?: string;
+  titleRailwayHq3?: string;
+  titleRdsoApprover1?: string;
+  titleRdsoApprover2?: string;
+  titleRdsoApprover3?: string;
   revisions: RevisionEntry[];
 }
 
@@ -343,4 +355,16 @@ export interface WorkspaceProject {
   selectedTables?: KavachTableId[];
   validationIssues: ValidationIssue[];
   settings: ExtractionSettings;
+}
+
+export interface SavedProjectSummary {
+  id: string;
+  name: string;
+  updatedAt: string;
+  stationName: string;
+  stationId: string;
+  drawingCount: number;
+  totalRows?: number;
+  componentsCount?: number;
+  isSavedForPreview: boolean;
 }

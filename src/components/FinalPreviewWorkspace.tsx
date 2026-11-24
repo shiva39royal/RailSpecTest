@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   CheckSquare,
   Download,
+  Eye,
   FileSpreadsheet,
   Plus,
   Printer,
@@ -11,7 +12,8 @@ import {
 import { KAVACH_SPEC_TABLES, KAVACH_TABLE_MAP } from '../spec/kavachSpecSchema';
 import { getTable1MergeGroups, getTable1PreviewSpan } from '../engine/kavachEngine';
 import { renderFormattedText } from '../utils/cellFormatting';
-import type { KavachTableId, RevisionEntry, WorkspaceProject } from '../types/project';
+import { generateKavachPdfBlob } from '../utils/exportEngine';
+import type { KavachTableId, RevisionEntry, TableRowRecord, WorkspaceProject } from '../types/project';
 
 interface FinalPreviewWorkspaceProps {
   project: WorkspaceProject;
@@ -55,6 +57,35 @@ export function FinalPreviewWorkspace({
     () => (selectedTableId === 'table1_control' ? getTable1MergeGroups(rows) : null),
     [selectedTableId, rows]
   );
+
+  const sheetChunks = useMemo(() => {
+    if (rows.length === 0) return [[]];
+    if (selectedTableId === 'table1_control' && table1MergeGroups) {
+      const chunks: TableRowRecord[][] = [];
+      let currentChunk: TableRowRecord[] = [];
+      let i = 0;
+      while (i < rows.length) {
+        const grp = table1MergeGroups[i];
+        const span = grp ? grp.rowSpan : 1;
+        const groupRows = rows.slice(i, i + span);
+        if (currentChunk.length > 0 && currentChunk.length + span > 18) {
+          chunks.push(currentChunk);
+          currentChunk = [...groupRows];
+        } else {
+          currentChunk.push(...groupRows);
+        }
+        i += span;
+      }
+      if (currentChunk.length > 0) chunks.push(currentChunk);
+      return chunks;
+    }
+
+    const chunks: TableRowRecord[][] = [];
+    for (let i = 0; i < rows.length; i += 18) {
+      chunks.push(rows.slice(i, i + 18));
+    }
+    return chunks;
+  }, [rows, selectedTableId, table1MergeGroups]);
 
   const toggleTableSelection = (id: KavachTableId) => {
     const next = new Set(selectedTableIds);
@@ -155,6 +186,19 @@ export function FinalPreviewWorkspace({
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
             Download Excel (.xlsx)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const blob = generateKavachPdfBlob(project, selectedTableIds);
+              const url = URL.createObjectURL(blob);
+              window.open(url, '_blank');
+            }}
+            className="px-3.5 py-2 text-xs font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-md flex items-center gap-1.5 whitespace-nowrap"
+            title="Preview generated PDF directly in browser"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            Preview PDF
           </button>
           <button
             type="button"
@@ -272,324 +316,346 @@ export function FinalPreviewWorkspace({
         ))}
       </div>
 
-      {/* Official RDSO Landscape Engineering Document Sheet Frame (5% Top + 75% Table + 20% Fixed Title Block) */}
-      <div className="bg-white border-2 border-slate-900 p-4 shadow-sm overflow-x-auto print:border print:p-2 print:shadow-none">
-        <div className="min-w-[1120px] min-h-[780px] flex flex-col justify-between gap-3">
-          {/* TOP ~5% AREA: Station Metadata Box (Top-Left) + Centered Sheet Heading */}
-          <div className="space-y-1.5 shrink-0">
-            <div className="flex items-start justify-start">
-              <table className="border-collapse border border-slate-900 text-[11px] w-[500px]">
-                <tbody>
-                  <tr>
-                    <td className="border border-slate-900 bg-slate-100 font-bold px-2.5 py-1 w-28">
-                      Station Name:
-                    </td>
-                    <td className="border border-slate-900 px-2.5 py-1 font-semibold text-center w-36">
-                      {m.stationName || '—'}
-                    </td>
-                    <td className="border border-slate-900 bg-slate-100 font-bold px-2.5 py-1 w-20">
-                      Division:
-                    </td>
-                    <td className="border border-slate-900 px-2.5 py-1 font-semibold text-center">
-                      {m.division || '—'}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="border border-slate-900 bg-slate-100 font-bold px-2.5 py-1">
-                      Station ID:
-                    </td>
-                    <td className="border border-slate-900 px-2.5 py-1 font-mono font-semibold text-center">
-                      {m.stationId || '—'}
-                    </td>
-                    <td className="border border-slate-900 bg-slate-100 font-bold px-2.5 py-1">
-                      Section:
-                    </td>
-                    <td className="border border-slate-900 px-2.5 py-1 font-semibold text-center">
-                      {m.section || '—'}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+      {/* Official RDSO Landscape Engineering Document Sheet Frames (5% Top + 75% Table + 20% Fixed Title Block on Every Sheet) */}
+      <div className="space-y-8">
+        {sheetChunks.map((chunkRows, sheetIdx) => {
+          const chunkMergeGroups =
+            selectedTableId === 'table1_control' ? getTable1MergeGroups(chunkRows) : null;
+          const isLastSheet = sheetIdx === sheetChunks.length - 1;
 
-            <div className="text-center pt-0.5">
-              <p className="text-sm font-bold text-slate-900 tracking-wide">
-                {spec.title}
-                {m.stationName ? ` for ${m.stationName}` : ''}
-                {m.stationCode ? ` (${m.stationCode})` : ''}
-              </p>
-            </div>
-          </div>
+          return (
+            <div
+              key={sheetIdx}
+              className="rdso-sheet-page bg-white border-2 border-slate-900 p-4 shadow-sm overflow-x-auto print:border print:p-2 print:shadow-none print:break-after-page"
+            >
+              <div className="min-w-[1120px] min-h-[780px] flex flex-col justify-between gap-3">
+                {/* TOP ~5% AREA: Station Metadata Box (Top-Left) + Centered Sheet Heading */}
+                <div className="space-y-1.5 shrink-0">
+                  <div className="flex items-start justify-between">
+                    <table className="border-collapse border border-slate-900 text-[11px] w-[500px]">
+                      <tbody>
+                        <tr>
+                          <td className="border border-slate-900 bg-slate-100 font-bold px-2.5 py-1 w-28">
+                            Station Name:
+                          </td>
+                          <td className="border border-slate-900 px-2.5 py-1 font-semibold text-center w-36">
+                            {m.stationName || '—'}
+                          </td>
+                          <td className="border border-slate-900 bg-slate-100 font-bold px-2.5 py-1 w-20">
+                            Division:
+                          </td>
+                          <td className="border border-slate-900 px-2.5 py-1 font-semibold text-center">
+                            {m.division || '—'}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="border border-slate-900 bg-slate-100 font-bold px-2.5 py-1">
+                            Station ID:
+                          </td>
+                          <td className="border border-slate-900 px-2.5 py-1 font-mono font-semibold text-center">
+                            {m.stationId || '—'}
+                          </td>
+                          <td className="border border-slate-900 bg-slate-100 font-bold px-2.5 py-1">
+                            Section:
+                          </td>
+                          <td className="border border-slate-900 px-2.5 py-1 font-semibold text-center">
+                            {m.section || '—'}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
 
-          {/* MIDDLE ~75% AREA: Main Specification Table */}
-          <div className="flex-1 flex flex-col justify-start min-h-[540px] space-y-4">
-            <table className="w-full border-collapse border border-slate-900 text-[11px]">
-              <thead>
-                {hasGroups ? (
-                  <>
-                    <tr className="bg-slate-200/80 text-slate-900 font-bold text-center">
-                      {topHeaders.map((h, i) => (
-                        <th
-                          key={i}
-                          colSpan={h.colSpan}
-                          rowSpan={h.rowSpan}
-                          className="border border-slate-900 px-1.5 py-1.5 leading-tight"
-                        >
-                          {h.label}
-                        </th>
-                      ))}
-                    </tr>
-                    <tr className="bg-slate-200/80 text-slate-900 font-bold text-center">
-                      {spec.columns
-                        .filter((c) => Boolean(c.group))
-                        .map((c) => (
-                          <th key={c.key} className="border border-slate-900 px-1.5 py-1.5 leading-tight">
-                            {c.label}
-                          </th>
-                        ))}
-                    </tr>
-                  </>
-                ) : (
-                  <tr className="bg-slate-200/80 text-slate-900 font-bold text-center">
-                    {spec.columns.map((c) => (
-                      <th key={c.key} className="border border-slate-900 px-2 py-2 leading-tight">
-                        {c.label}
-                      </th>
-                    ))}
-                  </tr>
-                )}
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={spec.columns.length}
-                      className="border border-slate-900 py-8 text-center italic text-slate-500"
-                    >
-                      No rows populated for {spec.title}.
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map((row, rowIdx) => {
-                    const mergeInfo = table1MergeGroups ? table1MergeGroups[rowIdx] : null;
-                    const rowBgClass = mergeInfo
-                      ? mergeInfo.groupIndex % 2 === 1
-                        ? 'bg-slate-50/55'
-                        : 'bg-white'
-                      : 'even:bg-slate-50/50';
+                    {sheetChunks.length > 1 && (
+                      <div className="text-right no-print">
+                        <span className="text-[11px] font-mono px-2.5 py-1 bg-slate-100 border border-slate-300 rounded font-bold text-slate-800">
+                          Sheet {sheetIdx + 1} of {sheetChunks.length}
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
-                    return (
-                      <tr key={row.rowId} className={rowBgClass}>
-                        {spec.columns.map((col) => {
-                          if (selectedTableId === 'table1_control' && table1MergeGroups) {
-                            const span = getTable1PreviewSpan(rows, rowIdx, col.key, table1MergeGroups);
-                            if (span.skip) return null;
-                            const val = row.cells[col.key];
-                            const meta = row.cellMeta[col.key];
-                            return (
-                              <td
-                                key={col.key}
-                                rowSpan={span.rowSpan > 1 ? span.rowSpan : undefined}
-                                className={`border border-slate-900 px-1.5 py-1.5 align-middle ${
-                                  col.align === 'right'
-                                    ? 'text-right font-mono tabular-nums'
-                                    : col.align === 'center'
-                                      ? 'text-center'
-                                      : 'text-left'
-                                }`}
+                  <div className="text-center pt-0.5">
+                    <p className="text-sm font-bold text-slate-900 tracking-wide">
+                      {spec.title}
+                      {m.stationName ? ` for ${m.stationName}` : ''}
+                      {m.stationCode ? ` (${m.stationCode})` : ''}
+                      {sheetChunks.length > 1 ? ` — Sheet ${sheetIdx + 1} of ${sheetChunks.length}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                {/* MIDDLE ~75% AREA: Main Specification Table */}
+                <div className="flex-1 flex flex-col justify-start min-h-[500px] space-y-4">
+                  <table className="w-full border-collapse border border-slate-900 text-[11px]">
+                    <thead>
+                      {hasGroups ? (
+                        <>
+                          <tr className="bg-slate-200/80 text-slate-900 font-bold text-center">
+                            {topHeaders.map((h, i) => (
+                              <th
+                                key={i}
+                                colSpan={h.colSpan}
+                                rowSpan={h.rowSpan}
+                                className="border border-slate-900 px-1.5 py-1.5 leading-tight"
                               >
-                                {val && val.trim() !== '' ? renderFormattedText(val, meta) : '-'}
-                              </td>
-                            );
-                          }
+                                {h.label}
+                              </th>
+                            ))}
+                          </tr>
+                          <tr className="bg-slate-200/80 text-slate-900 font-bold text-center">
+                            {spec.columns
+                              .filter((c) => Boolean(c.group))
+                              .map((c) => (
+                                <th key={c.key} className="border border-slate-900 px-1.5 py-1.5 leading-tight">
+                                  {c.label}
+                                </th>
+                              ))}
+                          </tr>
+                        </>
+                      ) : (
+                        <tr className="bg-slate-200/80 text-slate-900 font-bold text-center">
+                          {spec.columns.map((c) => (
+                            <th key={c.key} className="border border-slate-900 px-2 py-2 leading-tight">
+                              {c.label}
+                            </th>
+                          ))}
+                        </tr>
+                      )}
+                    </thead>
+                    <tbody>
+                      {chunkRows.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={spec.columns.length}
+                            className="border border-slate-900 py-8 text-center italic text-slate-500"
+                          >
+                            No rows populated for {spec.title}.
+                          </td>
+                        </tr>
+                      ) : (
+                        chunkRows.map((row, rowIdx) => {
+                          const mergeInfo = chunkMergeGroups ? chunkMergeGroups[rowIdx] : null;
+                          const rowBgClass = mergeInfo
+                            ? mergeInfo.groupIndex % 2 === 1
+                              ? 'bg-slate-50/55'
+                              : 'bg-white'
+                            : 'even:bg-slate-50/50';
 
-                          const val = row.cells[col.key];
-                          const meta = row.cellMeta[col.key];
                           return (
-                            <td
-                              key={col.key}
-                              className={`border border-slate-900 px-1.5 py-1.5 align-middle ${
-                                col.align === 'right'
-                                  ? 'text-right font-mono tabular-nums'
-                                  : col.align === 'center'
-                                    ? 'text-center'
-                                    : 'text-left'
-                              }`}
-                            >
-                              {val && val.trim() !== '' ? renderFormattedText(val, meta) : '-'}
-                            </td>
+                            <tr key={row.rowId} className={rowBgClass}>
+                              {spec.columns.map((col) => {
+                                if (selectedTableId === 'table1_control' && chunkMergeGroups) {
+                                  const span = getTable1PreviewSpan(chunkRows, rowIdx, col.key, chunkMergeGroups);
+                                  if (span.skip) return null;
+                                  const val = row.cells[col.key];
+                                  const meta = row.cellMeta[col.key];
+                                  return (
+                                    <td
+                                      key={col.key}
+                                      rowSpan={span.rowSpan > 1 ? span.rowSpan : undefined}
+                                      className={`border border-slate-900 px-1.5 py-1.5 align-middle ${
+                                        col.align === 'right'
+                                          ? 'text-right font-mono tabular-nums'
+                                          : col.align === 'center'
+                                            ? 'text-center'
+                                            : 'text-left'
+                                      }`}
+                                    >
+                                      {val && val.trim() !== '' ? renderFormattedText(val, meta) : '-'}
+                                    </td>
+                                  );
+                                }
+
+                                const val = row.cells[col.key];
+                                const meta = row.cellMeta[col.key];
+                                return (
+                                  <td
+                                    key={col.key}
+                                    className={`border border-slate-900 px-1.5 py-1.5 align-middle ${
+                                      col.align === 'right'
+                                        ? 'text-right font-mono tabular-nums'
+                                        : col.align === 'center'
+                                          ? 'text-center'
+                                          : 'text-left'
+                                    }`}
+                                  >
+                                    {val && val.trim() !== '' ? renderFormattedText(val, meta) : '-'}
+                                  </td>
+                                );
+                              })}
+                            </tr>
                           );
-                        })}
+                        })
+                      )}
+                    </tbody>
+                  </table>
+
+                  {/* Global Station Parameters (displayed on last sheet of Table 2 per RDSO Page 21) */}
+                  {selectedTableId === 'table2_block_section' && isLastSheet && (
+                    <div className="pt-1">
+                      <table className="border-collapse border border-slate-900 text-xs w-full">
+                        <tbody>
+                          <tr>
+                            <td className="border border-slate-900 bg-slate-100 font-bold px-3 py-2 w-64">
+                              Signals Override (OV) not required at zero speed
+                            </td>
+                            <td className="border border-slate-900 px-3 py-2 font-mono font-semibold text-center">
+                              {m.signalsOverrideNotRequiredAtZeroSpeed || '—'}
+                            </td>
+                            <td className="border border-slate-900 bg-slate-100 font-bold px-3 py-2 w-64">
+                              Authorized speed on detection of train in On-Sight mode
+                            </td>
+                            <td className="border border-slate-900 px-3 py-2 font-mono font-semibold text-center">
+                              {m.authorizedSpeedOnDetectionInOs ? `${m.authorizedSpeedOnDetectionInOs} kmph` : '—'}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* BOTTOM ~20% AREA: Fixed RDSO Pages 16–17 Signature & Approval Title Block */}
+                <div className="shrink-0 pt-2">
+                  <table className="w-full border-collapse border border-slate-900 text-[10px]">
+                    <tbody>
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="border border-slate-900 px-2 py-1 font-semibold text-center w-[36%]"
+                        >
+                          {m.stationName || 'STATION'}
+                          {m.stationCode ? `(${m.stationCode})` : ''}
+                          {m.stationId ? `-${m.stationId}` : ''}
+                        </td>
+                        <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[10%]">
+                          {m.railwayHqApprover1 || 'JE/SSE/Proj/HQ'}
+                        </td>
+                        <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[10%]">
+                          {m.railwayHqApprover2 || 'ASTE/Proj/HQ'}
+                        </td>
+                        <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[10%]">
+                          {m.railwayHqApprover3 || 'Dy.CSTE/Proj/HQ'}
+                        </td>
+                        <td
+                          colSpan={4}
+                          className="border border-slate-900 px-2 py-1 font-bold text-center w-[34%]"
+                        >
+                          {m.titleSignalTelecom || 'SIGNAL & TELECOMMUNICATIONS'}
+                        </td>
                       </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
 
-            {/* Global Station Parameters (displayed on Table 2 per RDSO Page 21) */}
-            {selectedTableId === 'table2_block_section' && (
-              <div className="pt-1">
-                <table className="border-collapse border border-slate-900 text-xs w-full">
-                  <tbody>
-                    <tr>
-                      <td className="border border-slate-900 bg-slate-100 font-bold px-3 py-2 w-64">
-                        Signals Override (OV) not required at zero speed
-                      </td>
-                      <td className="border border-slate-900 px-3 py-2 font-mono font-semibold text-center">
-                        {m.signalsOverrideNotRequiredAtZeroSpeed || '—'}
-                      </td>
-                      <td className="border border-slate-900 bg-slate-100 font-bold px-3 py-2 w-64">
-                        Authorized speed on detection of train in On-Sight mode
-                      </td>
-                      <td className="border border-slate-900 px-3 py-2 font-mono font-semibold text-center">
-                        {m.authorizedSpeedOnDetectionInOs ? `${m.authorizedSpeedOnDetectionInOs} kmph` : '—'}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                      <tr>
+                        <td colSpan={4} className="border border-slate-900 px-2 py-1 text-center">
+                          REF: SIP NO: {m.sipRef || '—'} &amp; TOC: {m.tocRef || '—'}
+                        </td>
+                        <td rowSpan={3} className="border border-slate-900 h-12"></td>
+                        <td rowSpan={3} className="border border-slate-900 h-12"></td>
+                        <td rowSpan={3} className="border border-slate-900 h-12"></td>
+                        <td colSpan={4} className="border border-slate-900 px-2 py-1 font-bold text-center">
+                          {m.titleKavach || 'KAVACH'}
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td colSpan={4} className="border border-slate-900 px-2 py-1 text-center">
+                          REF: {m.rfidLayoutRef || '—'}
+                        </td>
+                        <td colSpan={4} className="border border-slate-900 px-2 py-1 font-semibold text-center">
+                          {m.stationName || 'STATION'}
+                          {m.stationCode ? `(${m.stationCode})` : ''}
+                          {m.stationId ? `-${m.stationId}` : ''}
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td colSpan={4} className="border border-slate-900 px-2 py-1 text-center font-medium">
+                          TABLE NO: {m.tableDocNo || '—'}
+                        </td>
+                        <td colSpan={4} className="border border-slate-900 px-2 py-1 text-center font-bold">
+                          {spec.title.toUpperCase()}
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td colSpan={2} className="border border-slate-900 px-2 py-1 font-bold text-center w-[13%]">
+                          {m.titlePreparedBy || 'PREPARED BY'}
+                        </td>
+                        <td className="border border-slate-900 px-2 py-1 font-bold text-center w-[13%]">
+                          {m.titleCheckedBy || 'CHECKED BY'}
+                        </td>
+                        <td
+                          rowSpan={3}
+                          className="border border-slate-900 px-2 py-1 font-bold text-center align-middle w-[10%]"
+                        >
+                          Firm Logo
+                        </td>
+                        <td className="border border-slate-900 px-1.5 py-1 font-bold text-center">
+                          {m.rdsoApprover1 || 'JE/SSE/RDSO/LKO'}
+                        </td>
+                        <td className="border border-slate-900 px-1.5 py-1 font-bold text-center">
+                          {m.rdsoApprover2 || 'ADE/RDSO/LKO'}
+                        </td>
+                        <td className="border border-slate-900 px-1.5 py-1 font-bold text-center">
+                          {m.rdsoApprover3 || 'DIRECTOR/RDSO/LKO'}
+                        </td>
+                        <td
+                          rowSpan={3}
+                          className="border border-slate-900 px-2 py-1 text-center align-middle font-semibold w-[10%]"
+                        >
+                          {m.drawingNo || 'DRG.NO.'}
+                        </td>
+                        <td
+                          rowSpan={3}
+                          className="border border-slate-900 px-2 py-1 text-center align-middle w-[12%]"
+                        >
+                          <div className="font-bold">KAVACH:</div>
+                          <div className="mt-0.5">{m.sipRef || '—'}</div>
+                        </td>
+                        <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[6%]">
+                          SHEET
+                        </td>
+                        <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[6%]">
+                          SHEETS
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td className="border border-slate-900 px-1.5 py-1.5 font-bold text-center w-[5%]">
+                          SIGN
+                        </td>
+                        <td className="border border-slate-900 px-2 py-1.5 w-[8%]"></td>
+                        <td className="border border-slate-900 px-2 py-1.5"></td>
+                        <td colSpan={3} rowSpan={2} className="border border-slate-900 px-2 py-1.5 text-center align-middle">
+                          <div className="font-bold">{m.titleApprovedBy || 'APPROVED BY'}</div>
+                          <div className="font-semibold mt-0.5">{m.finalApprover || 'EXE. DIRECTOR TELE-II'}</div>
+                        </td>
+                        <td rowSpan={2} className="border border-slate-900 px-1.5 py-1.5 text-center font-mono font-semibold align-middle">
+                          {sheetIdx + 1}
+                        </td>
+                        <td rowSpan={2} className="border border-slate-900 px-1.5 py-1.5 text-center font-mono font-semibold align-middle">
+                          {sheetChunks.length}
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td className="border border-slate-900 px-1.5 py-1.5 font-bold text-center">
+                          NAME
+                        </td>
+                        <td className="border border-slate-900 px-2 py-1.5 text-center font-medium">
+                          {m.preparedBy || '—'}
+                        </td>
+                        <td className="border border-slate-900 px-2 py-1.5 text-center font-medium">
+                          {m.checkedBy || '—'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            )}
-          </div>
-
-          {/* BOTTOM ~20% AREA: Fixed RDSO Pages 16–17 Signature & Approval Title Block */}
-          <div className="shrink-0 pt-2">
-            <table className="w-full border-collapse border border-slate-900 text-[10px]">
-              <tbody>
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="border border-slate-900 px-2 py-1 font-semibold text-center w-[36%]"
-                  >
-                    {m.stationName || 'STATION'}
-                    {m.stationCode ? `(${m.stationCode})` : ''}
-                    {m.stationId ? `-${m.stationId}` : ''}
-                  </td>
-                  <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[10%]">
-                    {m.railwayHqApprover1 || 'JE/SSE/Proj/HQ'}
-                  </td>
-                  <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[10%]">
-                    {m.railwayHqApprover2 || 'ASTE/Proj/HQ'}
-                  </td>
-                  <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[10%]">
-                    {m.railwayHqApprover3 || 'Dy.CSTE/Proj/HQ'}
-                  </td>
-                  <td
-                    colSpan={4}
-                    className="border border-slate-900 px-2 py-1 font-bold text-center w-[34%]"
-                  >
-                    SIGNAL &amp; TELECOMMUNICATIONS
-                  </td>
-                </tr>
-
-                <tr>
-                  <td colSpan={4} className="border border-slate-900 px-2 py-1 text-center">
-                    REF: SIP NO: {m.sipRef || '—'} &amp; TOC: {m.tocRef || '—'}
-                  </td>
-                  <td rowSpan={3} className="border border-slate-900 h-12"></td>
-                  <td rowSpan={3} className="border border-slate-900 h-12"></td>
-                  <td rowSpan={3} className="border border-slate-900 h-12"></td>
-                  <td colSpan={4} className="border border-slate-900 px-2 py-1 font-bold text-center">
-                    KAVACH
-                  </td>
-                </tr>
-
-                <tr>
-                  <td colSpan={4} className="border border-slate-900 px-2 py-1 text-center">
-                    REF: {m.rfidLayoutRef || '—'}
-                  </td>
-                  <td colSpan={4} className="border border-slate-900 px-2 py-1 font-semibold text-center">
-                    {m.stationName || 'STATION'}
-                    {m.stationCode ? `(${m.stationCode})` : ''}
-                    {m.stationId ? `-${m.stationId}` : ''}
-                  </td>
-                </tr>
-
-                <tr>
-                  <td colSpan={4} className="border border-slate-900 px-2 py-1 text-center font-medium">
-                    TABLE NO: {m.tableDocNo || '—'}
-                  </td>
-                  <td colSpan={4} className="border border-slate-900 px-2 py-1 text-center font-bold">
-                    {spec.title.toUpperCase()}
-                  </td>
-                </tr>
-
-                <tr>
-                  <td colSpan={2} className="border border-slate-900 px-2 py-1 font-bold text-center w-[13%]">
-                    PREPARED BY
-                  </td>
-                  <td className="border border-slate-900 px-2 py-1 font-bold text-center w-[13%]">
-                    CHECKED BY
-                  </td>
-                  <td
-                    rowSpan={3}
-                    className="border border-slate-900 px-2 py-1 font-bold text-center align-middle w-[10%]"
-                  >
-                    Firm Logo
-                  </td>
-                  <td className="border border-slate-900 px-1.5 py-1 font-bold text-center">
-                    {m.rdsoApprover1 || 'JE/SSE/RDSO/LKO'}
-                  </td>
-                  <td className="border border-slate-900 px-1.5 py-1 font-bold text-center">
-                    {m.rdsoApprover2 || 'ADE/RDSO/LKO'}
-                  </td>
-                  <td className="border border-slate-900 px-1.5 py-1 font-bold text-center">
-                    {m.rdsoApprover3 || 'DIRECTOR/RDSO/LKO'}
-                  </td>
-                  <td
-                    rowSpan={3}
-                    className="border border-slate-900 px-2 py-1 text-center align-middle font-semibold w-[10%]"
-                  >
-                    {m.drawingNo || 'DRG.NO.'}
-                  </td>
-                  <td
-                    rowSpan={3}
-                    className="border border-slate-900 px-2 py-1 text-center align-middle w-[12%]"
-                  >
-                    <div className="font-bold">KAVACH:</div>
-                    <div className="mt-0.5">{m.sipRef || '—'}</div>
-                  </td>
-                  <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[6%]">
-                    SHEET
-                  </td>
-                  <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[6%]">
-                    SHEETS
-                  </td>
-                </tr>
-
-                <tr>
-                  <td className="border border-slate-900 px-1.5 py-1.5 font-bold text-center w-[5%]">
-                    SIGN
-                  </td>
-                  <td className="border border-slate-900 px-2 py-1.5 w-[8%]"></td>
-                  <td className="border border-slate-900 px-2 py-1.5"></td>
-                  <td colSpan={3} rowSpan={2} className="border border-slate-900 px-2 py-1.5 text-center align-middle">
-                    <div className="font-bold">APPROVED BY</div>
-                    <div className="font-semibold mt-0.5">{m.finalApprover || 'EXE. DIRECTOR TELE-II'}</div>
-                  </td>
-                  <td rowSpan={2} className="border border-slate-900 px-1.5 py-1.5 text-center font-mono font-semibold align-middle">
-                    {includedTables.findIndex((t) => t.id === selectedTableId) + 1}
-                  </td>
-                  <td rowSpan={2} className="border border-slate-900 px-1.5 py-1.5 text-center font-mono font-semibold align-middle">
-                    {includedTables.length}
-                  </td>
-                </tr>
-
-                <tr>
-                  <td className="border border-slate-900 px-1.5 py-1.5 font-bold text-center">
-                    NAME
-                  </td>
-                  <td className="border border-slate-900 px-2 py-1.5 text-center font-medium">
-                    {m.preparedBy || '—'}
-                  </td>
-                  <td className="border border-slate-900 px-2 py-1.5 text-center font-medium">
-                    {m.checkedBy || '—'}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Revision History Editor (Cl. I.2.14 — Separate below sheet frame) */}

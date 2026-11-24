@@ -188,6 +188,16 @@ export const TABLE1_COMMON_MERGE_KEYS = [
 export const TABLE1_COMMON_MERGE_KEY_SET = new Set<string>(TABLE1_COMMON_MERGE_KEYS);
 
 /**
+ * In Table 1, ONLY aspectEntry, aspectExit, and movementAuthority have distinct sub-rows.
+ * ALL other columns are route-level and merge across the entire route group.
+ */
+export const TABLE1_UNMERGED_ASPECT_KEYS = new Set<string>([
+  'aspectEntry',
+  'aspectExit',
+  'movementAuthority',
+]);
+
+/**
  * RDSO Movement Authority calculation from Exit Signal Aspect:
  * - Exit Green -> MA = 4
  * - Exit Double Yellow -> MA = 3
@@ -197,7 +207,7 @@ export const TABLE1_COMMON_MERGE_KEY_SET = new Set<string>(TABLE1_COMMON_MERGE_K
 export function deriveMovementAuthorityFromExitAspect(exitAspect: string | undefined): string {
   const norm = (exitAspect || '').trim().toLowerCase();
   if (norm.includes('green')) return '4';
-  if (norm.includes('double yellow')) return '3';
+  if (norm.includes('double yellow') || norm.includes('db yellow') || norm.includes('2 yellow')) return '3';
   if (norm.includes('yellow')) return '2';
   return '1';
 }
@@ -297,10 +307,9 @@ function normTable1CellVal(val: string | undefined): string {
 
 /**
  * Computes RDSO Page 16/17 style vertical rowSpan merging for Table 1 preview and PDF/Excel export:
- * - Common route columns (S. No., Entry/Exit Signal, Section Type, Line, Signal Type) span the whole route group.
- * - Route-invariant and consecutive matching columns (Aspects of Entry Signal, Points, Track Circuit,
- *   TINs, Check RFID Sequence, Distance, Authorized Speed in OS) merge across consecutive identical rows
- *   within the same route group.
+ * - Only aspectEntry, aspectExit, and movementAuthority have individual sub-rows per route.
+ * - ALL other columns (S. No., Entry/Exit Signal, Section Type, Line, Signal Type, Points, Track Circuits,
+ *   TINs, RFID Sequence, Distance, Speed) merge across the entire route group.
  */
 export function getTable1PreviewSpan(
   rows: TableRowRecord[],
@@ -311,34 +320,13 @@ export function getTable1PreviewSpan(
   const grp = mergeGroups[rowIdx];
   if (!grp) return { skip: false, rowSpan: 1 };
 
-  if (TABLE1_COMMON_MERGE_KEY_SET.has(colKey)) {
-    return grp.isGroupStart
-      ? { skip: false, rowSpan: grp.rowSpan }
-      : { skip: true, rowSpan: 0 };
-  }
-
-  if (!TABLE1_WITHIN_GROUP_MERGE_KEYS.has(colKey)) {
+  if (TABLE1_UNMERGED_ASPECT_KEYS.has(colKey)) {
     return { skip: false, rowSpan: 1 };
   }
 
-  const curVal = normTable1CellVal(rows[rowIdx]?.cells[colKey]);
-  if (
-    rowIdx > 0 &&
-    mergeGroups[rowIdx - 1]?.groupIndex === grp.groupIndex &&
-    normTable1CellVal(rows[rowIdx - 1]?.cells[colKey]) === curVal
-  ) {
-    return { skip: true, rowSpan: 0 };
-  }
-
-  let span = 1;
-  while (
-    rowIdx + span < rows.length &&
-    mergeGroups[rowIdx + span]?.groupIndex === grp.groupIndex &&
-    normTable1CellVal(rows[rowIdx + span]?.cells[colKey]) === curVal
-  ) {
-    span++;
-  }
-  return { skip: false, rowSpan: span };
+  return grp.isGroupStart
+    ? { skip: false, rowSpan: grp.rowSpan }
+    : { skip: true, rowSpan: 0 };
 }
 
 /**
@@ -507,25 +495,42 @@ export function recalculateDependentTables(
   const expandedT1: TableRowRecord[] = [];
   for (const row of tables.table1_control) {
     const rawExit = (row.cells.aspectExit || '').trim();
-    if (rawExit.includes('/')) {
-      const parts = rawExit.split('/').map((p) => p.trim()).filter(Boolean);
-      parts.forEach((part, subIdx) => {
-        const nextMa = deriveMovementAuthorityFromExitAspect(part);
+    const rawEntry = (row.cells.aspectEntry || '').trim();
+
+    if (rawExit.includes('/') || rawEntry.includes('/')) {
+      const exitParts = rawExit.includes('/')
+        ? rawExit.split('/').map((p) => p.trim()).filter(Boolean)
+        : [rawExit];
+      const entryParts = rawEntry.includes('/')
+        ? rawEntry.split('/').map((p) => p.trim()).filter(Boolean)
+        : [rawEntry];
+
+      const count = Math.max(exitParts.length, entryParts.length);
+      for (let subIdx = 0; subIdx < count; subIdx++) {
+        const exitPart = exitParts[subIdx] ?? exitParts[exitParts.length - 1] ?? '';
+        const entryPart = entryParts[subIdx] ?? entryParts[entryParts.length - 1] ?? rawEntry;
+        const nextMa = deriveMovementAuthorityFromExitAspect(exitPart);
         const nextCells: Record<string, string> = {
           ...row.cells,
-          aspectExit: part,
+          aspectEntry: entryPart,
+          aspectExit: exitPart,
           movementAuthority: nextMa,
         };
         const nextMeta = { ...row.cellMeta };
+        nextMeta.aspectEntry = {
+          source: 'calculated',
+          originalValue: entryPart,
+          trace: 'Split compound aspect entry into individual aspect row',
+        };
         nextMeta.aspectExit = {
           source: 'calculated',
-          originalValue: part,
+          originalValue: exitPart,
           trace: 'Split compound aspect exit into individual aspect row',
         };
         nextMeta.movementAuthority = {
           source: 'calculated',
           originalValue: nextMa,
-          trace: `Movement Authority ${nextMa} derived from Exit Aspect "${part}"`,
+          trace: `Movement Authority ${nextMa} derived from Exit Aspect "${exitPart}"`,
         };
         expandedT1.push({
           ...row,
@@ -533,7 +538,7 @@ export function recalculateDependentTables(
           cells: nextCells,
           cellMeta: nextMeta,
         });
-      });
+      }
     } else {
       const nextMa = deriveMovementAuthorityFromExitAspect(rawExit);
       const nextCells: Record<string, string> = {

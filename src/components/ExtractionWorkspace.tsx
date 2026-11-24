@@ -74,106 +74,65 @@ export function ExtractionWorkspace({
         </button>
       </div>
 
-      {/* Extraction Input & Scope Configuration */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-lg p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-900">Active Drawing & Extraction Scope</h2>
-
-          {!activeDrawing ? (
-            <div className="p-6 bg-slate-50 border border-slate-200 rounded-md text-center">
-              <p className="text-sm font-medium text-slate-700">No drawing selected for extraction.</p>
-              <p className="text-xs text-slate-500 mt-1">
-                Upload a DWG, DXF, or PDF layout and verify it in Drawing Viewer first.
+      {/* Active Layout Target Bar */}
+      {!activeDrawing ? (
+        <div className="p-8 bg-white border border-slate-200 rounded-lg text-center">
+          <p className="text-sm font-medium text-slate-700">No layout drawing selected for extraction.</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Upload a DWG, DXF, or PDF layout to begin extraction.
+          </p>
+          <button
+            type="button"
+            onClick={() => onNavigate('upload')}
+            className="mt-3 px-4 py-2 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-md"
+          >
+            Go to Upload Drawings
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-md bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 font-bold text-xs uppercase shrink-0">
+              {activeDrawing.format}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm text-slate-900">{activeDrawing.fileName}</span>
+                <span className="text-[11px] font-mono px-2 py-0.5 bg-slate-100 text-slate-600 rounded">
+                  {activeDrawing.format === 'PDF'
+                    ? `Page ${project.activePageNumber} of ${activeDrawing.pageCount}`
+                    : `${activeDrawing.cadData?.totalEntityCount?.toLocaleString() ?? 0} CAD entities`}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Ready to extract RDSO KAVACH tables from layout geometry and components.
               </p>
-              <button
-                type="button"
-                onClick={() => onNavigate('upload')}
-                className="mt-3 px-3.5 py-1.5 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-md"
-              >
-                Go to Upload Drawings
-              </button>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-slate-100 text-xs">
-                <div>
-                  <span className="text-slate-500 block">Primary Layout File</span>
-                  <span className="font-semibold text-slate-900 mt-0.5 block truncate">
-                    {activeDrawing.fileName}
-                  </span>
-                  <span className="text-slate-500 font-mono tabular-nums">
-                    {activeDrawing.format} ·{' '}
-                    {activeDrawing.format === 'PDF'
-                      ? `Viewing Page ${project.activePageNumber} of ${activeDrawing.pageCount}`
-                      : `${activeDrawing.cadData?.totalEntityCount.toLocaleString() ?? 0} CAD entities`}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Companion Sheets Attached</span>
-                  <span className="font-semibold text-slate-900 mt-0.5 block">
-                    {project.drawings.filter((d) => d.id !== activeDrawing.id).length} companion file(s)
-                  </span>
-                  <span className="text-slate-500">
-                    Missing companion data (Gradients, OHE Poles, SIP) will be flagged, never fabricated.
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Target Page / Layout Focus
-                  </label>
-                  <input
-                    type="text"
-                    value={pageScopeText}
-                    onChange={(e) => onPageScopeChange(e.target.value)}
-                    placeholder={
-                      activeDrawing.format === 'PDF'
-                        ? `Page ${project.activePageNumber}`
-                        : 'Model Space (All Layers)'
-                    }
-                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  />
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    For multi-page PDFs, navigate to the station layout page in Drawing Viewer before clicking Start Extraction.
-                  </p>
-                </div>
-
-                <div className="flex flex-col justify-center gap-2 pt-2">
-                  <p className="text-xs text-slate-600">
-                    All applicable RDSO KAVACH tables are extracted dynamically. Choose which tables to edit, preview, and export in Generated Tables &amp; Final Preview.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('viewer')}
-                    className="self-start text-xs font-medium text-blue-700 hover:underline flex items-center gap-1"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    Inspect layout in Drawing Viewer
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Specification Rules Summary */}
-        <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-blue-700" />
-            <h2 className="text-sm font-semibold text-slate-900">Active Spec Rules</h2>
           </div>
-          <ul className="space-y-2 text-xs text-slate-600">
-            <li>• 100% Offline local vector parser (DWG, DXF &amp; vector PDF) — zero API keys or external AI</li>
-            <li>• All 7 RDSO KAVACH tables generated deterministically from geometry &amp; spatial text</li>
-            <li>• RFID tag distance conservation &amp; A-Tag reset calculations</li>
-            <li>• Turnout speed ({project.settings.singleTurnoutSpeedKmph}/{project.settings.multiTurnoutSpeedKmph} kmph) &amp; +{project.settings.stationEntryTurnoutBufferM}m/+{project.settings.stationExitTurnoutBufferM}m rules</li>
-            <li>• Harmonic Average Gradient G = D / Σ(dᵢ/gᵢ) (max {project.settings.maxAverageGradientsPerRoute})</li>
-            <li>• Zero fabrication: missing companion fields flagged for review</li>
-          </ul>
+          <div className="flex items-center gap-3 self-end sm:self-center">
+            {activeDrawing.format === 'PDF' && (activeDrawing.pageCount ?? 1) > 1 && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                <span>Page:</span>
+                <input
+                  type="text"
+                  value={pageScopeText}
+                  onChange={(e) => onPageScopeChange(e.target.value)}
+                  placeholder={`Page ${project.activePageNumber}`}
+                  className="w-20 px-2 py-1 text-xs bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
+                />
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => onNavigate('viewer')}
+              className="text-xs font-medium text-blue-700 hover:text-blue-800 flex items-center gap-1 py-1 px-2.5 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-colors"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Inspect in Drawing Viewer
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Live Processing Stages */}
       <div className="bg-white border border-slate-200 rounded-lg p-5">

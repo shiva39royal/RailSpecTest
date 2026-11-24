@@ -1783,7 +1783,21 @@ export function extractComponentsFromCad(
   }
 
   // Table 2: Block Section Details (departure LSS / Advance Starter routes with Block TIN, Adjacent TIN, Next Station ID, A-Tag reset!)
-  const lssRoutes = forwardRoutes.filter((r) => r.entry.isLss && !r.entry.isCallingOn);
+  let lssRoutes = forwardRoutes.filter((r) => r.entry.isLss && !r.entry.isCallingOn);
+  if (lssRoutes.length === 0) {
+    // If layout drawing does not explicitly mark signals with "ADV" or "LSS", dynamically identify outermost departure routes in each direction
+    const nonCalling = forwardRoutes.filter((r) => !r.entry.isCallingOn);
+    const leftExits = nonCalling
+      .filter((r) => r.entry.facing === 'LEFT')
+      .sort((a, b) => a.entry.x - b.entry.x);
+    const rightExits = nonCalling
+      .filter((r) => r.entry.facing === 'RIGHT')
+      .sort((a, b) => b.entry.x - a.entry.x);
+    const candidates: CorridorRoute[] = [];
+    if (leftExits.length > 0) candidates.push(leftExits[0]);
+    if (rightExits.length > 0) candidates.push(rightExits[0]);
+    lssRoutes = candidates;
+  }
   for (let i = 0; i < lssRoutes.length; i++) {
     const r = lssRoutes[i];
     const movDir = r.entry.line.toUpperCase().includes('UP') ? 'UP' : 'Down';
@@ -1821,7 +1835,7 @@ export function extractComponentsFromCad(
 
   // Table 3: Shunting Limit Table (outermost station-limit tags per direction with adjacent station name)
   const stationRangeTags = [...rfidTags]
-    .filter((t) => !t.isDotted && t.roleCode !== 'A' && typeof t.absMeters === 'number')
+    .filter((t) => !t.isDotted && t.roleCode !== 'A')
     .sort((a, b) => a.x - b.x);
   const boundaryTags: Array<{ tag: DetectedRfidTag; adjName: string }> = [];
   for (const dir of ['Nominal', 'Reverse'] as const) {
@@ -1837,6 +1851,18 @@ export function extractComponentsFromCad(
           adjName: rightAdjStation?.name || 'Adjacent Station (Right)',
         });
       }
+    }
+  }
+  if (boundaryTags.length === 0 && stationRangeTags.length > 0) {
+    boundaryTags.push({
+      tag: stationRangeTags[0],
+      adjName: leftAdjStation?.name || 'Adjacent Station (Left)',
+    });
+    if (stationRangeTags.length > 1) {
+      boundaryTags.push({
+        tag: stationRangeTags[stationRangeTags.length - 1],
+        adjName: rightAdjStation?.name || 'Adjacent Station (Right)',
+      });
     }
   }
   const seenShunt = new Set<string>();
@@ -1857,7 +1883,12 @@ export function extractComponentsFromCad(
           direction: bt.directionLabel === 'Unknown' ? 'Nominal' : bt.directionLabel,
           rfidTagNo: bt.label,
           tin: nearestTin?.label || '',
-          absoluteLocationMeters: typeof bt.absMeters === 'number' ? String(bt.absMeters) : '',
+          absoluteLocationMeters:
+            typeof bt.absMeters === 'number'
+              ? String(bt.absMeters)
+              : bt.chainageKm
+                ? String(bt.chainageKm)
+                : String(Math.round(bt.x)),
         },
         new Set(['absoluteLocationMeters']),
         `CAD Tag ${bt.label}`

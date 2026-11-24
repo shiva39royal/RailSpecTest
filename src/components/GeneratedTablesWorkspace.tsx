@@ -22,6 +22,7 @@ import {
 import { KAVACH_SPEC_TABLES, KAVACH_TABLE_MAP } from '../spec/kavachSpecSchema';
 import {
   TABLE1_COMMON_MERGE_KEY_SET,
+  TABLE1_UNMERGED_ASPECT_KEYS,
   deriveMovementAuthorityFromExitAspect,
   getSignalTypeChoicesForRow,
   getTable1MergeGroups,
@@ -118,6 +119,7 @@ export function GeneratedTablesWorkspace({
     end: number;
   } | null>(null);
   const [pendingDeleteRowId, setPendingDeleteRowId] = useState<string | null>(null);
+  const [isEditingSheetBlocks, setIsEditingSheetBlocks] = useState(false);
 
   // Hierarchical Add Row Modal State
   const [isAddRowModalOpen, setIsAddRowModalOpen] = useState(false);
@@ -147,6 +149,8 @@ export function GeneratedTablesWorkspace({
   const table1Routes = useMemo(() => {
     if (effectiveTableId !== 'table1_control') return [];
     const t1Rows = tables.table1_control || [];
+    if (t1Rows.length === 0) return [];
+    const groups = getTable1MergeGroups(t1Rows);
     const routes: Array<{
       sNo: string;
       entrySignal: string;
@@ -158,25 +162,23 @@ export function GeneratedTablesWorkspace({
       aspectCount: number;
     }> = [];
 
-    t1Rows.forEach((row, idx) => {
-      const sNo = row.cells.sNo || '';
-      const existing = routes.find((r) => r.sNo === sNo);
-      if (existing) {
-        existing.lastRowIndex = idx;
-        existing.aspectCount++;
-      } else {
-        routes.push({
-          sNo,
-          entrySignal: row.cells.entrySignal || '',
-          exitSignal: row.cells.exitSignal || '',
-          line: row.cells.line || '',
-          signalType: row.cells.signalType || '',
-          lastRowIndex: idx,
-          sampleRow: row,
-          aspectCount: 1,
-        });
-      }
-    });
+    let i = 0;
+    while (i < t1Rows.length) {
+      const grp = groups[i];
+      const span = grp?.rowSpan || 1;
+      const row = t1Rows[i];
+      routes.push({
+        sNo: row.cells.sNo || String(routes.length + 1),
+        entrySignal: row.cells.entrySignal || '',
+        exitSignal: row.cells.exitSignal || '',
+        line: row.cells.line || '',
+        signalType: row.cells.signalType || '',
+        lastRowIndex: i + span - 1,
+        sampleRow: row,
+        aspectCount: span,
+      });
+      i += span;
+    }
 
     return routes;
   }, [effectiveTableId, tables.table1_control]);
@@ -462,6 +464,19 @@ export function GeneratedTablesWorkspace({
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
+            onClick={() => setIsEditingSheetBlocks((v) => !v)}
+            className={`px-3 py-2 text-xs font-semibold rounded-md border flex items-center gap-1.5 whitespace-nowrap transition-colors ${
+              isEditingSheetBlocks
+                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            <FileEdit className="w-3.5 h-3.5" />
+            {isEditingSheetBlocks ? 'Lock Header & Footer' : 'Edit Header & Footer'}
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowTableSelector((v) => !v)}
             className={`px-3 py-2 text-xs font-medium rounded-md border flex items-center gap-1.5 whitespace-nowrap ${
               showTableSelector
@@ -663,8 +678,138 @@ export function GeneratedTablesWorkspace({
         })}
       </div>
 
-      {/* Active Table Toolbar */}
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      {/* Official RDSO Landscape Engineering Document Sheet Frame (5% Top + 75% Table + 20% Fixed Title Block) */}
+      <div className="bg-white border-2 border-slate-900 p-4 shadow-sm overflow-x-auto print:border print:p-2">
+        <div className="min-w-[1120px] min-h-[780px] flex flex-col justify-between gap-4">
+          {/* TOP ~5% AREA: Station Metadata Box (Top-Left) + Centered Sheet Heading */}
+          <div className="space-y-1.5 shrink-0 border-b border-slate-200 pb-3">
+            <div className="flex items-start justify-between gap-4">
+              <table className="border-collapse border border-slate-900 text-[11px] w-[540px]">
+                <tbody>
+                  <tr>
+                    <td className="border border-slate-900 bg-slate-100 font-bold px-2.5 py-1 w-28">
+                      Station Name:
+                    </td>
+                    <td className="border border-slate-900 px-2.5 py-1 font-semibold text-center w-40">
+                      {isEditingSheetBlocks ? (
+                        <input
+                          type="text"
+                          value={metadata.stationName || ''}
+                          onChange={(e) => onUpdateMetadata({ stationName: e.target.value })}
+                          placeholder="Station Name"
+                          className="w-full text-center px-1 py-0.5 text-xs font-semibold bg-amber-50 border border-amber-400 rounded focus:bg-white focus:outline-none"
+                        />
+                      ) : (
+                        <span
+                          onClick={() => setIsEditingSheetBlocks(true)}
+                          className="cursor-pointer hover:text-blue-700"
+                          title="Click to edit Station Name"
+                        >
+                          {metadata.stationName || '—'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="border border-slate-900 bg-slate-100 font-bold px-2.5 py-1 w-20">
+                      Division:
+                    </td>
+                    <td className="border border-slate-900 px-2.5 py-1 font-semibold text-center">
+                      {isEditingSheetBlocks ? (
+                        <input
+                          type="text"
+                          value={metadata.division || ''}
+                          onChange={(e) => onUpdateMetadata({ division: e.target.value })}
+                          placeholder="Division"
+                          className="w-full text-center px-1 py-0.5 text-xs font-semibold bg-amber-50 border border-amber-400 rounded focus:bg-white focus:outline-none"
+                        />
+                      ) : (
+                        <span
+                          onClick={() => setIsEditingSheetBlocks(true)}
+                          className="cursor-pointer hover:text-blue-700"
+                          title="Click to edit Division"
+                        >
+                          {metadata.division || '—'}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-slate-900 bg-slate-100 font-bold px-2.5 py-1">
+                      Station ID:
+                    </td>
+                    <td className="border border-slate-900 px-2.5 py-1 font-mono font-semibold text-center">
+                      {isEditingSheetBlocks ? (
+                        <input
+                          type="text"
+                          value={metadata.stationId || ''}
+                          onChange={(e) => onUpdateMetadata({ stationId: e.target.value })}
+                          placeholder="Station ID"
+                          className="w-full text-center px-1 py-0.5 text-xs font-mono font-semibold bg-amber-50 border border-amber-400 rounded focus:bg-white focus:outline-none"
+                        />
+                      ) : (
+                        <span
+                          onClick={() => setIsEditingSheetBlocks(true)}
+                          className="cursor-pointer hover:text-blue-700"
+                          title="Click to edit Station ID"
+                        >
+                          {metadata.stationId || '—'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="border border-slate-900 bg-slate-100 font-bold px-2.5 py-1">
+                      Section:
+                    </td>
+                    <td className="border border-slate-900 px-2.5 py-1 font-semibold text-center">
+                      {isEditingSheetBlocks ? (
+                        <input
+                          type="text"
+                          value={metadata.section || ''}
+                          onChange={(e) => onUpdateMetadata({ section: e.target.value })}
+                          placeholder="Section"
+                          className="w-full text-center px-1 py-0.5 text-xs font-semibold bg-amber-50 border border-amber-400 rounded focus:bg-white focus:outline-none"
+                        />
+                      ) : (
+                        <span
+                          onClick={() => setIsEditingSheetBlocks(true)}
+                          className="cursor-pointer hover:text-blue-700"
+                          title="Click to edit Section"
+                        >
+                          {metadata.section || '—'}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditingSheetBlocks((prev) => !prev)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md border flex items-center gap-1.5 transition-colors shadow-xs ${
+                    isEditingSheetBlocks
+                      ? 'bg-amber-600 text-white border-amber-600'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <FileEdit className="w-3.5 h-3.5" />
+                  {isEditingSheetBlocks ? 'Lock Header & Footer' : 'Edit Header & Footer'}
+                </button>
+              </div>
+            </div>
+
+            <div className="text-center pt-0.5">
+              <p className="text-sm font-bold text-slate-900 tracking-wide">
+                {spec.title}
+                {metadata.stationName ? ` for ${metadata.stationName}` : ''}
+                {metadata.stationCode ? ` (${metadata.stationCode})` : ''}
+              </p>
+            </div>
+          </div>
+
+          {/* MIDDLE ~75% AREA: Active Table Toolbar + Format Bar + Dense Editable Grid */}
+          <div className="flex-1 flex flex-col justify-start space-y-3">
+            {/* Active Table Toolbar */}
+            <div className="bg-white border border-slate-300 rounded-lg overflow-hidden shadow-xs">
         <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -1004,7 +1149,7 @@ export function GeneratedTablesWorkspace({
                       {spec.columns.map((col) => {
                         const isCommonMergeCol =
                           effectiveTableId === 'table1_control' &&
-                          TABLE1_COMMON_MERGE_KEY_SET.has(col.key);
+                          !TABLE1_UNMERGED_ASPECT_KEYS.has(col.key);
                         if (isCommonMergeCol && mergeInfo && !mergeInfo.isGroupStart) {
                           return null;
                         }
@@ -1283,6 +1428,467 @@ export function GeneratedTablesWorkspace({
           </table>
         </div>
       </div>
+
+      {/* Global Station Parameters (displayed on Table 2 per RDSO Page 21) */}
+      {effectiveTableId === 'table2_block_section' && (
+        <div className="pt-1">
+          <table className="border-collapse border border-slate-900 text-xs w-full">
+            <tbody>
+              <tr>
+                <td className="border border-slate-900 bg-slate-100 font-bold px-3 py-2 w-72">
+                  Signals Override (OV) not required at zero speed
+                </td>
+                <td className="border border-slate-900 px-3 py-2 font-mono font-semibold text-center">
+                  {isEditingSheetBlocks ? (
+                    <input
+                      type="text"
+                      value={metadata.signalsOverrideNotRequiredAtZeroSpeed || ''}
+                      onChange={(e) =>
+                        onUpdateMetadata({
+                          signalsOverrideNotRequiredAtZeroSpeed: e.target.value,
+                        })
+                      }
+                      placeholder="e.g. Yes / No"
+                      className="w-full text-center bg-amber-50 border border-amber-300 rounded px-2 py-1 text-xs"
+                    />
+                  ) : (
+                    metadata.signalsOverrideNotRequiredAtZeroSpeed || '—'
+                  )}
+                </td>
+                <td className="border border-slate-900 bg-slate-100 font-bold px-3 py-2 w-72">
+                  Authorized speed on detection of train in On-Sight mode
+                </td>
+                <td className="border border-slate-900 px-3 py-2 font-mono font-semibold text-center">
+                  {isEditingSheetBlocks ? (
+                    <input
+                      type="text"
+                      value={metadata.authorizedSpeedOnDetectionInOs || ''}
+                      onChange={(e) =>
+                        onUpdateMetadata({
+                          authorizedSpeedOnDetectionInOs: e.target.value,
+                        })
+                      }
+                      placeholder="e.g. 15"
+                      className="w-full text-center bg-amber-50 border border-amber-300 rounded px-2 py-1 text-xs"
+                    />
+                  ) : metadata.authorizedSpeedOnDetectionInOs ? (
+                    `${metadata.authorizedSpeedOnDetectionInOs} kmph`
+                  ) : (
+                    '—'
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+
+    {/* BOTTOM ~20% AREA: Fixed RDSO Pages 16–17 Signature & Approval Title Block */}
+    <div className="shrink-0 pt-3 border-t border-slate-200">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+          RDSO Signature &amp; Approval Block (Cl. I.2.13)
+        </span>
+        <button
+          type="button"
+          onClick={() => setIsEditingSheetBlocks((prev) => !prev)}
+          className="text-[11px] font-medium text-blue-700 hover:underline flex items-center gap-1"
+        >
+          <FileEdit className="w-3 h-3" />
+          {isEditingSheetBlocks ? 'Done Editing' : 'Edit Block Values'}
+        </button>
+      </div>
+      <table className="w-full border-collapse border border-slate-900 text-[10px]">
+        <tbody>
+          <tr>
+            <td
+              colSpan={4}
+              className="border border-slate-900 px-2 py-1 font-semibold text-center w-[36%]"
+            >
+              {isEditingSheetBlocks ? (
+                <div className="flex items-center gap-1 justify-center">
+                  <input
+                    type="text"
+                    value={metadata.stationName || ''}
+                    onChange={(e) => onUpdateMetadata({ stationName: e.target.value })}
+                    placeholder="Station"
+                    className="px-1 py-0.5 text-center bg-amber-50 border border-amber-300 rounded text-[10px] w-24"
+                  />
+                  <input
+                    type="text"
+                    value={metadata.stationCode || ''}
+                    onChange={(e) => onUpdateMetadata({ stationCode: e.target.value })}
+                    placeholder="Code"
+                    className="px-1 py-0.5 text-center bg-amber-50 border border-amber-300 rounded text-[10px] w-14"
+                  />
+                  <input
+                    type="text"
+                    value={metadata.stationId || ''}
+                    onChange={(e) => onUpdateMetadata({ stationId: e.target.value })}
+                    placeholder="ID"
+                    className="px-1 py-0.5 text-center bg-amber-50 border border-amber-300 rounded text-[10px] w-14"
+                  />
+                </div>
+              ) : (
+                <span>
+                  {metadata.stationName || 'STATION'}
+                  {metadata.stationCode ? `(${metadata.stationCode})` : ''}
+                  {metadata.stationId ? `-${metadata.stationId}` : ''}
+                </span>
+              )}
+            </td>
+            <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[10%]">
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.railwayHqApprover1 || ''}
+                  onChange={(e) => onUpdateMetadata({ railwayHqApprover1: e.target.value })}
+                  placeholder="JE/SSE/Proj/HQ"
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5"
+                />
+              ) : (
+                metadata.railwayHqApprover1 || 'JE/SSE/Proj/HQ'
+              )}
+            </td>
+            <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[10%]">
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.railwayHqApprover2 || ''}
+                  onChange={(e) => onUpdateMetadata({ railwayHqApprover2: e.target.value })}
+                  placeholder="ASTE/Proj/HQ"
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5"
+                />
+              ) : (
+                metadata.railwayHqApprover2 || 'ASTE/Proj/HQ'
+              )}
+            </td>
+            <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[10%]">
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.railwayHqApprover3 || ''}
+                  onChange={(e) => onUpdateMetadata({ railwayHqApprover3: e.target.value })}
+                  placeholder="Dy.CSTE/Proj/HQ"
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5"
+                />
+              ) : (
+                metadata.railwayHqApprover3 || 'Dy.CSTE/Proj/HQ'
+              )}
+            </td>
+            <td
+              colSpan={4}
+              className="border border-slate-900 px-2 py-1 font-bold text-center w-[34%]"
+            >
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.titleSignalTelecom || ''}
+                  onChange={(e) => onUpdateMetadata({ titleSignalTelecom: e.target.value })}
+                  placeholder="SIGNAL & TELECOMMUNICATIONS"
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5 font-bold"
+                />
+              ) : (
+                metadata.titleSignalTelecom || 'SIGNAL & TELECOMMUNICATIONS'
+              )}
+            </td>
+          </tr>
+
+          <tr>
+            <td colSpan={4} className="border border-slate-900 px-2 py-1 text-center">
+              {isEditingSheetBlocks ? (
+                <div className="flex items-center gap-1 justify-center text-[10px]">
+                  <span>REF: SIP NO:</span>
+                  <input
+                    type="text"
+                    value={metadata.sipRef || ''}
+                    onChange={(e) => onUpdateMetadata({ sipRef: e.target.value })}
+                    placeholder="SIP Ref"
+                    className="px-1 py-0.5 bg-amber-50 border border-amber-300 rounded w-28 text-center"
+                  />
+                  <span>&amp; TOC:</span>
+                  <input
+                    type="text"
+                    value={metadata.tocRef || ''}
+                    onChange={(e) => onUpdateMetadata({ tocRef: e.target.value })}
+                    placeholder="TOC Ref"
+                    className="px-1 py-0.5 bg-amber-50 border border-amber-300 rounded w-28 text-center"
+                  />
+                </div>
+              ) : (
+                <span>
+                  REF: SIP NO: {metadata.sipRef || '—'} &amp; TOC: {metadata.tocRef || '—'}
+                </span>
+              )}
+            </td>
+            <td rowSpan={3} className="border border-slate-900 h-12"></td>
+            <td rowSpan={3} className="border border-slate-900 h-12"></td>
+            <td rowSpan={3} className="border border-slate-900 h-12"></td>
+            <td colSpan={4} className="border border-slate-900 px-2 py-1 font-bold text-center">
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.titleKavach || ''}
+                  onChange={(e) => onUpdateMetadata({ titleKavach: e.target.value })}
+                  placeholder="KAVACH"
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5 font-bold"
+                />
+              ) : (
+                metadata.titleKavach || 'KAVACH'
+              )}
+            </td>
+          </tr>
+
+          <tr>
+            <td colSpan={4} className="border border-slate-900 px-2 py-1 text-center">
+              {isEditingSheetBlocks ? (
+                <div className="flex items-center gap-1 justify-center text-[10px]">
+                  <span>REF:</span>
+                  <input
+                    type="text"
+                    value={metadata.rfidLayoutRef || ''}
+                    onChange={(e) => onUpdateMetadata({ rfidLayoutRef: e.target.value })}
+                    placeholder="RFID Layout Ref"
+                    className="px-1 py-0.5 bg-amber-50 border border-amber-300 rounded w-48 text-center"
+                  />
+                </div>
+              ) : (
+                <span>REF: {metadata.rfidLayoutRef || '—'}</span>
+              )}
+            </td>
+            <td
+              colSpan={4}
+              className="border border-slate-900 px-2 py-1 font-semibold text-center"
+            >
+              {metadata.stationName || 'STATION'}
+              {metadata.stationCode ? `(${metadata.stationCode})` : ''}
+              {metadata.stationId ? `-${metadata.stationId}` : ''}
+            </td>
+          </tr>
+
+          <tr>
+            <td
+              colSpan={4}
+              className="border border-slate-900 px-2 py-1 text-center font-medium"
+            >
+              {isEditingSheetBlocks ? (
+                <div className="flex items-center gap-1 justify-center text-[10px]">
+                  <span>TABLE NO:</span>
+                  <input
+                    type="text"
+                    value={metadata.tableDocNo || ''}
+                    onChange={(e) => onUpdateMetadata({ tableDocNo: e.target.value })}
+                    placeholder="Table Doc No"
+                    className="px-1 py-0.5 bg-amber-50 border border-amber-300 rounded w-28 text-center"
+                  />
+                </div>
+              ) : (
+                <span>TABLE NO: {metadata.tableDocNo || '—'}</span>
+              )}
+            </td>
+            <td
+              colSpan={4}
+              className="border border-slate-900 px-2 py-1 text-center font-bold"
+            >
+              {spec.title.toUpperCase()}
+            </td>
+          </tr>
+
+          <tr>
+            <td
+              colSpan={2}
+              className="border border-slate-900 px-2 py-1 font-bold text-center w-[13%]"
+            >
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.titlePreparedBy || ''}
+                  onChange={(e) => onUpdateMetadata({ titlePreparedBy: e.target.value })}
+                  placeholder="PREPARED BY"
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5 font-bold"
+                />
+              ) : (
+                metadata.titlePreparedBy || 'PREPARED BY'
+              )}
+            </td>
+            <td className="border border-slate-900 px-2 py-1 font-bold text-center w-[13%]">
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.titleCheckedBy || ''}
+                  onChange={(e) => onUpdateMetadata({ titleCheckedBy: e.target.value })}
+                  placeholder="CHECKED BY"
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5 font-bold"
+                />
+              ) : (
+                metadata.titleCheckedBy || 'CHECKED BY'
+              )}
+            </td>
+            <td
+              rowSpan={3}
+              className="border border-slate-900 px-2 py-1 font-bold text-center align-middle w-[10%]"
+            >
+              Firm Logo
+            </td>
+            <td className="border border-slate-900 px-1.5 py-1 font-bold text-center">
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.rdsoApprover1 || ''}
+                  onChange={(e) => onUpdateMetadata({ rdsoApprover1: e.target.value })}
+                  placeholder="JE/SSE/RDSO/LKO"
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5"
+                />
+              ) : (
+                metadata.rdsoApprover1 || 'JE/SSE/RDSO/LKO'
+              )}
+            </td>
+            <td className="border border-slate-900 px-1.5 py-1 font-bold text-center">
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.rdsoApprover2 || ''}
+                  onChange={(e) => onUpdateMetadata({ rdsoApprover2: e.target.value })}
+                  placeholder="ADE/RDSO/LKO"
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5"
+                />
+              ) : (
+                metadata.rdsoApprover2 || 'ADE/RDSO/LKO'
+              )}
+            </td>
+            <td className="border border-slate-900 px-1.5 py-1 font-bold text-center">
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.rdsoApprover3 || ''}
+                  onChange={(e) => onUpdateMetadata({ rdsoApprover3: e.target.value })}
+                  placeholder="DIRECTOR/RDSO/LKO"
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5"
+                />
+              ) : (
+                metadata.rdsoApprover3 || 'DIRECTOR/RDSO/LKO'
+              )}
+            </td>
+            <td
+              rowSpan={3}
+              className="border border-slate-900 px-2 py-1 text-center align-middle font-semibold w-[10%]"
+            >
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.drawingNo || ''}
+                  onChange={(e) => onUpdateMetadata({ drawingNo: e.target.value })}
+                  placeholder="Drawing No."
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5"
+                />
+              ) : (
+                metadata.drawingNo || 'DRG.NO.'
+              )}
+            </td>
+            <td
+              rowSpan={3}
+              className="border border-slate-900 px-2 py-1 text-center align-middle w-[12%]"
+            >
+              <div className="font-bold">KAVACH:</div>
+              <div className="mt-0.5">{metadata.sipRef || '—'}</div>
+            </td>
+            <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[6%]">
+              SHEET
+            </td>
+            <td className="border border-slate-900 px-1.5 py-1 font-bold text-center w-[6%]">
+              SHEETS
+            </td>
+          </tr>
+
+          <tr>
+            <td className="border border-slate-900 px-1.5 py-1.5 font-bold text-center w-[5%]">
+              SIGN
+            </td>
+            <td className="border border-slate-900 px-2 py-1.5 w-[8%]"></td>
+            <td className="border border-slate-900 px-2 py-1.5"></td>
+            <td
+              colSpan={3}
+              rowSpan={2}
+              className="border border-slate-900 px-2 py-1.5 text-center align-middle"
+            >
+              <div className="font-bold">
+                {isEditingSheetBlocks ? (
+                  <input
+                    type="text"
+                    value={metadata.titleApprovedBy || ''}
+                    onChange={(e) => onUpdateMetadata({ titleApprovedBy: e.target.value })}
+                    placeholder="APPROVED BY"
+                    className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5 font-bold mb-0.5"
+                  />
+                ) : (
+                  metadata.titleApprovedBy || 'APPROVED BY'
+                )}
+              </div>
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.finalApprover || ''}
+                  onChange={(e) => onUpdateMetadata({ finalApprover: e.target.value })}
+                  placeholder="EXE. DIRECTOR TELE-II"
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5 mt-0.5"
+                />
+              ) : (
+                <div className="font-semibold mt-0.5">
+                  {metadata.finalApprover || 'EXE. DIRECTOR TELE-II'}
+                </div>
+              )}
+            </td>
+            <td
+              rowSpan={2}
+              className="border border-slate-900 px-1.5 py-1.5 text-center font-mono font-semibold align-middle"
+            >
+              {visibleTables.findIndex((t) => t.id === effectiveTableId) + 1}
+            </td>
+            <td
+              rowSpan={2}
+              className="border border-slate-900 px-1.5 py-1.5 text-center font-mono font-semibold align-middle"
+            >
+              {visibleTables.length}
+            </td>
+          </tr>
+
+          <tr>
+            <td className="border border-slate-900 px-1.5 py-1.5 font-bold text-center">
+              NAME
+            </td>
+            <td className="border border-slate-900 px-2 py-1.5 text-center font-medium">
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.preparedBy || ''}
+                  onChange={(e) => onUpdateMetadata({ preparedBy: e.target.value })}
+                  placeholder="Prepared By"
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5"
+                />
+              ) : (
+                metadata.preparedBy || '—'
+              )}
+            </td>
+            <td className="border border-slate-900 px-2 py-1.5 text-center font-medium">
+              {isEditingSheetBlocks ? (
+                <input
+                  type="text"
+                  value={metadata.checkedBy || ''}
+                  onChange={(e) => onUpdateMetadata({ checkedBy: e.target.value })}
+                  placeholder="Checked By"
+                  className="w-full text-center bg-amber-50 border border-amber-300 rounded text-[10px] py-0.5"
+                />
+              ) : (
+                metadata.checkedBy || '—'
+              )}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
       {/* Delete Row Confirmation Dialog */}
       {pendingDeleteRowId && (

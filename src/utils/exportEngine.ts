@@ -279,8 +279,8 @@ function drawRdsoSignatureFooter(
 
   doc.setFontSize(6.2);
   doc.setFont('helvetica', 'bold');
-  doc.text('PREPARED BY', xLeft + (cSignW + cPrepW) / 2, y4 + 4.5, { align: 'center' });
-  doc.text('CHECKED BY', xPrepEnd + cChkW / 2, y4 + 4.5, { align: 'center' });
+  doc.text(m.titlePreparedBy || 'PREPARED BY', xLeft + (cSignW + cPrepW) / 2, y4 + 4.5, { align: 'center' });
+  doc.text(m.titleCheckedBy || 'CHECKED BY', xPrepEnd + cChkW / 2, y4 + 4.5, { align: 'center' });
   doc.text('Firm Logo', xChkEnd + (xMid - xChkEnd) / 2, y4 + (y7 - y4) / 2 + 1, { align: 'center' });
   doc.text('SIGN', xLeft + cSignW / 2, y5 + 5.2, { align: 'center' });
   doc.text('NAME', xLeft + cSignW / 2, y6 + 5.2, { align: 'center' });
@@ -305,15 +305,15 @@ function drawRdsoSignatureFooter(
   doc.text(m.rdsoApprover3 || 'DIRECTOR/RDSO/LKO', xMid + midColW * 2.5, y4 + 4.5, { align: 'center' });
 
   doc.setFontSize(6.5);
-  doc.text('APPROVED BY', xMid + midW / 2, y5 + 6.5, { align: 'center' });
+  doc.text(m.titleApprovedBy || 'APPROVED BY', xMid + midW / 2, y5 + 6.5, { align: 'center' });
   doc.setFontSize(6.8);
   doc.text(m.finalApprover || 'EXE. DIRECTOR TELE-II', xMid + midW / 2, y6 + 4.5, { align: 'center' });
 
   // RIGHT BLOCK (34%): Rows 1-4 titles + Rows 5-7 DRG.NO / KAVACH / SHEET / SHEETS
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.8);
-  doc.text('SIGNAL & TELECOMMUNICATIONS', xRight + rightW / 2, y0 + 4.2, { align: 'center' });
-  doc.text('KAVACH', xRight + rightW / 2, y1 + 4.2, { align: 'center' });
+  doc.text(m.titleSignalTelecom || 'SIGNAL & TELECOMMUNICATIONS', xRight + rightW / 2, y0 + 4.2, { align: 'center' });
+  doc.text(m.titleKavach || 'KAVACH', xRight + rightW / 2, y1 + 4.2, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.text(stationLabel, xRight + rightW / 2, y2 + 4.2, { align: 'center' });
   doc.setFont('helvetica', 'bold');
@@ -346,12 +346,12 @@ function drawRdsoSignatureFooter(
 }
 
 /**
- * Generates an official landscape A3 multi-page RDSO KAVACH PDF package from the user's final dataset.
+ * Builds the official RDSO Landscape Engineering PDF Document.
  */
-export function exportKavachToPdf(
+export function buildKavachPdfDocument(
   project: WorkspaceProject,
   selectedTableIds?: KavachTableId[]
-): void {
+): jsPDF {
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -528,6 +528,28 @@ export function exportKavachToPdf(
     );
   }
 
+  return doc;
+}
+
+/**
+ * Returns a PDF Blob for in-browser preview without downloading to disk.
+ */
+export function generateKavachPdfBlob(
+  project: WorkspaceProject,
+  selectedTableIds?: KavachTableId[]
+): Blob {
+  const doc = buildKavachPdfDocument(project, selectedTableIds);
+  return doc.output('blob');
+}
+
+/**
+ * Generates and downloads the official RDSO Landscape Engineering Deliverable PDF.
+ */
+export function exportKavachToPdf(
+  project: WorkspaceProject,
+  selectedTableIds?: KavachTableId[]
+): void {
+  const doc = buildKavachPdfDocument(project, selectedTableIds);
   const baseName = sanitizeFileName(
     `${project.metadata.stationName || project.name}_KAVACH_Control_Tables_v${project.metadata.versionControl || '1.0.0'}`
   );

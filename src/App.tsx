@@ -44,6 +44,7 @@ import type {
   KavachTableId,
   NavigationSection,
   RevisionEntry,
+  SavedProjectSummary,
   TableRowRecord,
   TextStyleProps,
   UploadedDrawing,
@@ -110,7 +111,14 @@ export default function App() {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.id && parsed.tables) return parsed;
+        if (parsed && parsed.id && parsed.tables) {
+          const { tables, validationIssues } = applyRecalcAndValidate(
+            parsed.tables,
+            parsed.metadata || createEmptyMetadata(),
+            parsed.settings || DEFAULT_EXTRACTION_SETTINGS
+          );
+          return { ...parsed, tables, validationIssues };
+        }
       }
     } catch {
       // ignore localStorage error
@@ -131,17 +139,7 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' | 'info' } | null>(
     null
   );
-  const [savedProjects, setSavedProjects] = useState<
-    Array<{
-      id: string;
-      name: string;
-      updatedAt: string;
-      stationName: string;
-      stationId: string;
-      drawingCount: number;
-      isSavedForPreview: boolean;
-    }>
-  >([]);
+  const [savedProjects, setSavedProjects] = useState<SavedProjectSummary[]>([]);
 
   const drawingFilesRef = useRef<Map<string, File>>(new Map());
 
@@ -420,20 +418,56 @@ export default function App() {
       ]);
 
       setMissingCompanionInfo(data.missingCompanionInfo || []);
-      setProject((prev) => ({
-        ...prev,
-        updatedAt: new Date().toISOString(),
+
+      const now = new Date().toISOString();
+      const baseLayoutName = activeDrawing.fileName.replace(/\.[^/.]+$/, '').trim();
+      const existingMatch = savedProjects.find(
+        (sp) =>
+          sp.name.toLowerCase() === baseLayoutName.toLowerCase() ||
+          sp.name.toLowerCase() === activeDrawing.fileName.toLowerCase() ||
+          (data.metadata?.stationName &&
+            sp.stationName &&
+            sp.stationName.toLowerCase() === data.metadata.stationName.toLowerCase()) ||
+          (sp.stationId && data.metadata?.stationId && sp.stationId === data.metadata.stationId)
+      );
+
+      const targetId = existingMatch ? existingMatch.id : project.id;
+      const targetName = baseLayoutName || project.name;
+
+      const extractedProject: WorkspaceProject = {
+        ...project,
+        id: targetId,
+        name: targetName,
+        updatedAt: now,
         isSavedForPreview: false,
         extractionStatus: 'completed',
         extractionError: undefined,
         extractionSummary: data.extractionSummary,
-        extractedAt: new Date().toISOString(),
+        extractedAt: now,
         metadata: data.metadata,
         components: data.components || [],
         relationships: data.relationships || [],
         tables: data.tables,
         validationIssues: data.validationIssues || [],
-      }));
+      };
+
+      setProject(extractedProject);
+
+      // Auto-persist extracted dataset so user can revisit without re-uploading
+      try {
+        await fetchJsonWithRetry(
+          `/api/projects/${targetId}`,
+          () => ({
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(extractedProject),
+          }),
+          { fallbackError: 'Failed to auto-save extracted workspace' }
+        );
+        fetchSavedProjects();
+      } catch {
+        // Non-blocking persistence failure
+      }
 
       showToast('Dynamic extraction completed across all RDSO KAVACH tables.', 'success');
     } catch (err) {
@@ -780,8 +814,22 @@ export default function App() {
     [project, applyRecalcAndValidate, fetchSavedProjects, showToast]
   );
 
+  const handleReloadFreshUpload = useCallback(() => {
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    setProject(createInitialProject());
+    setStages(createInitialStages());
+    setMissingCompanionInfo([]);
+    setPageScopeText('');
+    setActiveNav('upload');
+    showToast('Reset to fresh station layout workspace.', 'info');
+  }, [showToast]);
+
   const handleLoadProject = useCallback(
-    async (projectId: string) => {
+    async (projectId: string, targetNav: NavigationSection = 'tables') => {
       try {
         const data = await fetchJsonWithRetry<{ project: WorkspaceProject }>(
           `/api/projects/${projectId}`,
@@ -791,22 +839,99 @@ export default function App() {
             maxRetries: 2,
           }
         );
-        setProject(data.project);
+        const { tables, validationIssues } = applyRecalcAndValidate(
+          data.project.tables,
+          data.project.metadata,
+          data.project.settings
+        );
+        setProject({ ...data.project, tables, validationIssues });
+        setActiveNav(targetNav);
         showToast(`Loaded workspace "${data.project.metadata?.stationName || data.project.name}".`, 'success');
       } catch (err) {
         showToast((err as Error).message, 'error');
       }
     },
-    [showToast]
+    [applyRecalcAndValidate, showToast]
   );
 
+  const handleDeleteProjects = useCallback(
+    async (projectIds: string[]) => {
+      // Optimistically remove from UI immediately
+      setSavedProjects((prev) => prev.filter((p) => !projectIds.includes(p.id)));
+      try {
+        try {
+          await fetchJsonWithRetry(
+            '/api/projects',
+            () => ({
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: projectIds }),
+            }),
+            { fallbackError: 'Failed to delete selected project(s)', maxRetries: 1 }
+          );
+        } catch {
+          // Fallback to POST /api/projects/delete if DELETE method is blocked
+          await fetchJsonWithRetry(
+            '/api/projects/delete',
+            () => ({
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: projectIds }),
+            }),
+            { fallbackError: 'Failed to delete selected project(s)' }
+          );
+        }
+        await fetchSavedProjects();
+        if (projectIds.includes(project.id)) {
+          handleReloadFreshUpload();
+        }
+        showToast(`Deleted ${projectIds.length} layout dataset(s).`, 'success');
+      } catch (err) {
+        await fetchSavedProjects();
+        showToast((err as Error).message, 'error');
+      }
+    },
+    [fetchSavedProjects, handleReloadFreshUpload, project.id, showToast]
+  );
+
+  const handleClearAllProjects = useCallback(async () => {
+    // Optimistically clear all from UI immediately
+    setSavedProjects([]);
+    try {
+      try {
+        await fetchJsonWithRetry(
+          '/api/projects',
+          () => ({
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          }),
+          { fallbackError: 'Failed to clear all projects', maxRetries: 1 }
+        );
+      } catch {
+        // Fallback to POST /api/projects/clear-all
+        await fetchJsonWithRetry(
+          '/api/projects/clear-all',
+          () => ({
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          }),
+          { fallbackError: 'Failed to clear all projects' }
+        );
+      }
+      await fetchSavedProjects();
+      handleReloadFreshUpload();
+      showToast('Cleared all saved layout datasets.', 'success');
+    } catch (err) {
+      await fetchSavedProjects();
+      showToast((err as Error).message, 'error');
+    }
+  }, [fetchSavedProjects, handleReloadFreshUpload, showToast]);
+
   const handleNewProject = useCallback(() => {
-    setProject(createInitialProject());
-    setStages(createInitialStages());
-    setMissingCompanionInfo([]);
-    setPageScopeText('');
-    setActiveNav('upload');
-  }, []);
+    handleReloadFreshUpload();
+  }, [handleReloadFreshUpload]);
 
   const handleJumpToIssue = useCallback(
     (tableId: KavachTableId | 'metadata', rowId?: string, columnKey?: string) => {
@@ -845,12 +970,22 @@ export default function App() {
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 text-slate-900">
       {/* Persistent Left-Side Engineering Navigation Rail */}
       <aside className="w-64 bg-[#0F172A] text-slate-200 flex flex-col shrink-0 border-r border-slate-800 no-print">
-        <div className="h-14 px-5 flex items-center gap-2.5 border-b border-slate-800 shrink-0">
-          <TrainTrack className="w-5 h-5 text-blue-400 shrink-0" />
-          <span className="font-bold text-sm tracking-tight text-white whitespace-nowrap truncate">
-            X-Tractor
-          </span>
-        </div>
+        <button
+          type="button"
+          onClick={handleReloadFreshUpload}
+          className="h-14 px-5 flex items-center gap-2.5 border-b border-slate-800 shrink-0 w-full text-left hover:bg-slate-800/60 transition-colors group cursor-pointer"
+          title="X-Tractor Home — Click to start fresh upload / reload"
+        >
+          <TrainTrack className="w-5 h-5 text-blue-400 group-hover:scale-105 transition-transform shrink-0" />
+          <div className="flex flex-col min-w-0">
+            <span className="font-bold text-sm tracking-tight text-white whitespace-nowrap truncate">
+              X-Tractor
+            </span>
+            <span className="text-[10px] text-slate-400 group-hover:text-blue-300">
+              Click for fresh upload
+            </span>
+          </div>
+        </button>
 
         {/* Navigation Links */}
         <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
@@ -965,7 +1100,9 @@ export default function App() {
               savedProjects={savedProjects}
               onNavigate={setActiveNav}
               onLoadProject={handleLoadProject}
-              onNewProject={handleNewProject}
+              onNewProject={handleReloadFreshUpload}
+              onDeleteProjects={handleDeleteProjects}
+              onClearAllProjects={handleClearAllProjects}
             />
           )}
 

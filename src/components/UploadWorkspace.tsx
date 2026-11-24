@@ -123,7 +123,7 @@ export function UploadWorkspace({
               : 'Drop DWG, DXF, or PDF drawings here, or click to browse'}
           </p>
           <p className="text-xs text-slate-500 mt-1.5">
-            Supports AutoCAD DWG (R13–R2018+ with DXF recovery bridge), ASCII DXF (layers, blocks, dimensions, text), and multi-page vector PDF up to 50 MB.
+            Supports AutoCAD DWG (R13–R2018+ with DXF recovery bridge), ASCII DXF (layers, blocks, dimensions, text), and multi-page vector PDF up to 100 MB.
           </p>
         </div>
 

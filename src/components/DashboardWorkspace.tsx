@@ -1,33 +1,29 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
-  Cpu,
-  Download,
-  Eye,
+  CheckSquare,
+  Database,
   FileCheck2,
   FolderOpen,
+  Plus,
+  Square,
   Table2,
+  Trash2,
   Upload,
 } from 'lucide-react';
 import { KAVACH_SPEC_TABLES, SPEC_DOCUMENT_INFO } from '../spec/kavachSpecSchema';
-import type { NavigationSection, WorkspaceProject } from '../types/project';
+import type { NavigationSection, SavedProjectSummary, WorkspaceProject } from '../types/project';
 
 interface DashboardWorkspaceProps {
   project: WorkspaceProject;
-  savedProjects: Array<{
-    id: string;
-    name: string;
-    updatedAt: string;
-    stationName: string;
-    stationId: string;
-    drawingCount: number;
-    isSavedForPreview: boolean;
-  }>;
+  savedProjects: SavedProjectSummary[];
   onNavigate: (section: NavigationSection) => void;
-  onLoadProject: (projectId: string) => void;
+  onLoadProject: (projectId: string, targetNav?: NavigationSection) => void;
   onNewProject: () => void;
+  onDeleteProjects: (projectIds: string[]) => Promise<void>;
+  onClearAllProjects: () => Promise<void>;
 }
 
 export function DashboardWorkspace({
@@ -36,76 +32,59 @@ export function DashboardWorkspace({
   onNavigate,
   onLoadProject,
   onNewProject,
+  onDeleteProjects,
+  onClearAllProjects,
 }: DashboardWorkspaceProps) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showConfirmClearAll, setShowConfirmClearAll] = useState(false);
+
   const totalRows = KAVACH_SPEC_TABLES.reduce(
     (sum, t) => sum + (project.tables[t.id]?.length || 0),
     0
   );
   const errorCount = project.validationIssues.filter((i) => i.severity === 'error').length;
   const warningCount = project.validationIssues.filter((i) => i.severity === 'warning').length;
-
   const hasDrawing = project.drawings.length > 0;
-  const hasExtracted = project.extractionStatus === 'completed';
 
-  const workflowSteps: Array<{
-    num: string;
-    title: string;
-    detail: string;
-    done: boolean;
-    section: NavigationSection;
-    cta: string;
-  }> = [
-    {
-      num: '01',
-      title: 'Upload & Validate Drawings',
-      detail: hasDrawing
-        ? `${project.drawings.length} file(s) validated and ready`
-        : 'Upload DWG, DXF, or PDF station layout',
-      done: hasDrawing,
-      section: 'upload',
-      cta: hasDrawing ? 'Manage Files' : 'Upload',
-    },
-    {
-      num: '02',
-      title: 'Inspect Drawing Layout',
-      detail: hasDrawing
-        ? `Active: ${project.drawings.find((d) => d.id === project.activeDrawingId)?.fileName || project.drawings[0].fileName}`
-        : 'Verify layers, signals, tags & zoom before extraction',
-      done: hasDrawing,
-      section: 'viewer',
-      cta: 'Open Viewer',
-    },
-    {
-      num: '03',
-      title: 'Run Dynamic Extraction',
-      detail: hasExtracted
-        ? `${project.components.length} components · ${project.relationships.length} relationships`
-        : 'Analyze geometry, topology, and RDSO calculations',
-      done: hasExtracted,
-      section: 'extraction',
-      cta: hasExtracted ? 'View Report' : 'Extract',
-    },
-    {
-      num: '04',
-      title: 'Edit Tables & Validate',
-      detail: hasExtracted
-        ? `${totalRows} rows across 7 tables · ${errorCount} errors / ${warningCount} warnings`
-        : 'Review, edit cells, and verify RDSO invariants',
-      done: hasExtracted && errorCount === 0,
-      section: 'tables',
-      cta: 'Edit Tables',
-    },
-    {
-      num: '05',
-      title: 'Save, Preview & Export',
-      detail: project.isSavedForPreview
-        ? 'Finalized for RDSO PDF & Excel export'
-        : 'Save verified data to generate final sheets',
-      done: project.isSavedForPreview,
-      section: project.isSavedForPreview ? 'preview' : 'export',
-      cta: 'Preview / Export',
-    },
-  ];
+  const allSelected =
+    savedProjects.length > 0 && selectedIds.length === savedProjects.length;
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(savedProjects.map((p) => p.id));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.length === 0) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteProjects(selectedIds);
+      setSelectedIds([]);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleConfirmClearAll = async () => {
+    setIsDeleting(true);
+    try {
+      await onClearAllProjects();
+      setSelectedIds([]);
+      setShowConfirmClearAll(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -113,10 +92,10 @@ export function DashboardWorkspace({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            Railway Station Layout & KAVACH Workspace
+            Railway Station Layout &amp; KAVACH Workspace
           </h1>
           <p className="text-sm text-slate-600 mt-1">
-            {SPEC_DOCUMENT_INFO.code} ({SPEC_DOCUMENT_INFO.version} {SPEC_DOCUMENT_INFO.amendment}) · Dynamic DWG, DXF & PDF extraction to official KAVACH Control & Track Profile tables.
+            {SPEC_DOCUMENT_INFO.code} ({SPEC_DOCUMENT_INFO.version} {SPEC_DOCUMENT_INFO.amendment}) · Dynamic DWG, DXF &amp; PDF extraction to official KAVACH Control &amp; Track Profile tables.
           </p>
         </div>
 
@@ -124,43 +103,44 @@ export function DashboardWorkspace({
           <button
             type="button"
             onClick={onNewProject}
-            className="px-3.5 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md whitespace-nowrap"
+            className="px-3.5 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md whitespace-nowrap flex items-center gap-1.5 shadow-xs"
           >
+            <Plus className="w-3.5 h-3.5" />
             New Station Workspace
           </button>
           <button
             type="button"
-            onClick={() => onNavigate(hasDrawing ? 'viewer' : 'upload')}
-            className="px-4 py-2 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-md flex items-center gap-1.5 whitespace-nowrap"
+            onClick={() => onNavigate('upload')}
+            className="px-4 py-2 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-md flex items-center gap-1.5 whitespace-nowrap shadow-xs"
           >
-            {hasDrawing ? <Eye className="w-3.5 h-3.5" /> : <Upload className="w-3.5 h-3.5" />}
-            {hasDrawing ? 'Inspect Active Drawing' : 'Upload Station Drawing'}
+            <Upload className="w-3.5 h-3.5" />
+            Upload Station Drawing
           </button>
         </div>
       </div>
 
-      {/* Key Metrics Strip */}
+      {/* Key Metrics Strip (Overall Details) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <span className="text-xs text-slate-500">Station Context</span>
+        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-xs">
+          <span className="text-xs text-slate-500">Active Station Context</span>
           <p className="text-base font-bold text-slate-900 mt-1 truncate">
-            {project.metadata.stationName || 'Not Extracted Yet'}
+            {project.metadata.stationName || project.name || 'Not Extracted Yet'}
           </p>
           <span className="text-xs font-mono tabular-nums text-slate-500">
-            {project.metadata.stationId ? `ID ${project.metadata.stationId}` : 'ID —'} · Ver {project.metadata.versionControl}
+            {project.metadata.stationId ? `ID ${project.metadata.stationId}` : 'ID —'} · Ver {project.metadata.versionControl || '1.0.0'}
           </span>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <span className="text-xs text-slate-500">Uploaded Drawings</span>
+        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-xs">
+          <span className="text-xs text-slate-500">Saved Layouts</span>
           <p className="text-2xl font-bold font-mono tabular-nums text-slate-900 mt-0.5">
-            {project.drawings.length}
+            {savedProjects.length}
           </p>
-          <span className="text-xs text-slate-500">DWG, DXF & PDF formats</span>
+          <span className="text-xs text-slate-500">Preserved offline datasets</span>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <span className="text-xs text-slate-500">Extracted Records</span>
+        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-xs">
+          <span className="text-xs text-slate-500">Active Extracted Records</span>
           <p className="text-2xl font-bold font-mono tabular-nums text-slate-900 mt-0.5">
             {totalRows}
           </p>
@@ -169,7 +149,7 @@ export function DashboardWorkspace({
           </span>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg p-4">
+        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-xs">
           <span className="text-xs text-slate-500">Validation Audit</span>
           <p className="text-2xl font-bold font-mono tabular-nums mt-0.5">
             <span className={errorCount > 0 ? 'text-red-700' : 'text-emerald-700'}>{errorCount}</span>
@@ -181,125 +161,212 @@ export function DashboardWorkspace({
         </div>
       </div>
 
-      {/* End-to-End Engineering Workflow Tracker */}
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-900">End-to-End Documentation Workflow</h2>
-          <span className="text-xs text-slate-500">Click any stage to continue</span>
-        </div>
-        <div className="divide-y divide-slate-100">
-          {workflowSteps.map((step) => (
-            <div
-              key={step.num}
-              className="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors"
-            >
-              <div className="flex items-start gap-3.5">
-                <span className="font-mono text-xs font-semibold text-slate-400 pt-0.5">
-                  {step.num}
-                </span>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-900">{step.title}</span>
-                    {step.done && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                  </div>
-                  <p className="text-xs text-slate-600 mt-0.5">{step.detail}</p>
-                </div>
-              </div>
+      {/* Primary Saved Layouts & Extracted Datasets Section */}
+      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-xs">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
+          <div className="flex items-center gap-2">
+            <Database className="w-4 h-4 text-blue-700" />
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">
+                Saved Station Layouts &amp; Extracted Datasets ({savedProjects.length})
+              </h2>
+              <p className="text-xs text-slate-500">
+                Extracted KAVACH tables and metadata are preserved offline. Click any layout name to directly open its Generated Tables.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {selectedIds.length > 0 && (
               <button
                 type="button"
-                onClick={() => onNavigate(step.section)}
-                className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md flex items-center gap-1 self-start sm:self-center whitespace-nowrap shrink-0"
+                onClick={handleDeleteSelected}
+                disabled={isDeleting}
+                className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 disabled:bg-red-400 rounded-md flex items-center gap-1.5 shadow-xs"
               >
-                {step.cta}
-                <ArrowRight className="w-3.5 h-3.5" />
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete Selected ({selectedIds.length})
               </button>
-            </div>
-          ))}
+            )}
+            {savedProjects.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowConfirmClearAll(true)}
+                disabled={isDeleting}
+                className="px-3 py-1.5 text-xs font-medium text-slate-700 hover:text-red-700 bg-white hover:bg-red-50 border border-slate-300 hover:border-red-300 rounded-md flex items-center gap-1.5 transition-colors shadow-xs"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-slate-400" />
+                Clear All
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Table Readiness Summary & Saved Sessions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-lg overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-900">
-              RDSO KAVACH Output Tables Coverage
-            </h2>
+        {savedProjects.length === 0 ? (
+          <div className="py-12 px-6 text-center">
+            <FolderOpen className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+            <h3 className="text-sm font-semibold text-slate-800">No Saved Layout Datasets Yet</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+              Upload a station drawing (DWG, DXF, or PDF) and run Dynamic Extraction. All extracted tables and metadata will be automatically preserved here so you can revisit and edit anytime without re-uploading.
+            </p>
             <button
               type="button"
-              onClick={() => onNavigate('tables')}
-              className="text-xs font-medium text-blue-700 hover:underline flex items-center gap-1"
+              onClick={() => onNavigate('upload')}
+              className="mt-4 px-4 py-2 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-md inline-flex items-center gap-1.5 shadow-xs"
             >
-              <Table2 className="w-3.5 h-3.5" />
-              Open Tables
+              <Upload className="w-3.5 h-3.5" />
+              Upload Station Drawing
             </button>
           </div>
-          <div className="divide-y divide-slate-100 text-xs">
-            {KAVACH_SPEC_TABLES.map((t) => {
-              const count = project.tables[t.id]?.length || 0;
-              const issues = project.validationIssues.filter((i) => i.tableId === t.id).length;
-              return (
-                <div key={t.id} className="px-5 py-2.5 flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <span className="font-semibold text-slate-900">{t.tableNumber}</span>
-                    <span className="text-slate-400 mx-1.5">·</span>
-                    <span className="text-slate-700">{t.title}</span>
-                  </div>
-                  <div className="flex items-center gap-4 shrink-0 font-mono tabular-nums">
-                    <span className="text-slate-600">{count} rows</span>
-                    {issues > 0 ? (
-                      <span className="text-amber-700 flex items-center gap-1 font-sans">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        {issues} flag{issues > 1 ? 's' : ''}
-                      </span>
-                    ) : count > 0 ? (
-                      <span className="text-emerald-700 flex items-center gap-1 font-sans">
-                        <FileCheck2 className="w-3.5 h-3.5" />
-                        Verified
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 font-sans">Pending</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-xs">
+              <thead className="bg-slate-100 text-slate-700 border-b border-slate-200">
+                <tr>
+                  <th className="py-2.5 px-3 w-10 text-center">
+                    <button
+                      type="button"
+                      onClick={toggleSelectAll}
+                      className="p-0.5 text-slate-600 hover:text-slate-900"
+                      title={allSelected ? 'Deselect all' : 'Select all'}
+                    >
+                      {allSelected ? (
+                        <CheckSquare className="w-4 h-4 text-blue-700" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-400" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="py-2.5 px-3 text-left font-semibold">Layout / Station Name</th>
+                  <th className="py-2.5 px-3 text-left font-semibold w-28">Station ID</th>
+                  <th className="py-2.5 px-3 text-left font-semibold w-40">Extracted Records</th>
+                  <th className="py-2.5 px-3 text-left font-semibold w-44">Last Updated</th>
+                  <th className="py-2.5 px-3 text-center font-semibold w-28">Status</th>
+                  <th className="py-2.5 px-3 text-right font-semibold w-36">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {savedProjects.map((sp) => {
+                  const isChecked = selectedIds.includes(sp.id);
+                  const isCurrent = project.id === sp.id;
+                  const displayName = sp.stationName || sp.name;
 
-        {/* Saved Server Workspaces */}
-        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden h-fit">
-          <div className="px-4 py-3.5 border-b border-slate-200 flex items-center gap-2">
-            <FolderOpen className="w-4 h-4 text-slate-600" />
-            <h2 className="text-sm font-semibold text-slate-900">Saved Workspaces</h2>
+                  return (
+                    <tr
+                      key={sp.id}
+                      className={`hover:bg-blue-50/40 transition-colors ${
+                        isChecked ? 'bg-blue-50/60' : isCurrent ? 'bg-slate-50/70' : ''
+                      }`}
+                    >
+                      <td className="py-3 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => toggleSelect(sp.id)}
+                          className="p-0.5 text-slate-600 hover:text-slate-900"
+                        >
+                          {isChecked ? (
+                            <CheckSquare className="w-4 h-4 text-blue-700" />
+                          ) : (
+                            <Square className="w-4 h-4 text-slate-400" />
+                          )}
+                        </button>
+                      </td>
+                      <td className="py-3 px-3">
+                        <button
+                          type="button"
+                          onClick={() => onLoadProject(sp.id, 'tables')}
+                          className="text-left group flex flex-col"
+                        >
+                          <span className="font-bold text-slate-900 group-hover:text-blue-700 group-hover:underline flex items-center gap-1.5">
+                            {displayName}
+                            {isCurrent && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded font-normal">
+                                Active
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-mono">
+                            {sp.name !== displayName ? sp.name : `${sp.drawingCount} file(s)`}
+                          </span>
+                        </button>
+                      </td>
+                      <td className="py-3 px-3 font-mono font-medium text-slate-700">
+                        {sp.stationId || '—'}
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="font-mono tabular-nums text-slate-800 font-semibold">
+                          {typeof sp.totalRows === 'number' && sp.totalRows > 0
+                            ? `${sp.totalRows} table rows`
+                            : 'Extracted tables'}
+                        </div>
+                        {typeof sp.componentsCount === 'number' && sp.componentsCount > 0 && (
+                          <div className="text-[11px] text-slate-500">
+                            {sp.componentsCount} components
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 font-mono text-[11px] text-slate-600 tabular-nums">
+                        {new Date(sp.updatedAt).toLocaleString(undefined, {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Ready
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => onLoadProject(sp.id, 'tables')}
+                          className="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded inline-flex items-center gap-1"
+                          title="Open in Generated Tables"
+                        >
+                          <span>Open Tables</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          {savedProjects.length === 0 ? (
-            <div className="p-6 text-center text-xs text-slate-500">
-              No saved sessions yet. Save your edited tables to store and revisit station packages here.
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {savedProjects.map((sp) => (
-                <button
-                  key={sp.id}
-                  type="button"
-                  onClick={() => onLoadProject(sp.id)}
-                  className="w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors"
-                >
-                  <p className="text-xs font-semibold text-slate-900 truncate">
-                    {sp.stationName || sp.name}
-                    {sp.stationId ? ` (ID: ${sp.stationId})` : ''}
-                  </p>
-                  <p className="text-[11px] text-slate-500 mt-0.5 font-mono tabular-nums">
-                    {new Date(sp.updatedAt).toLocaleDateString()} · {sp.drawingCount} file(s)
-                    {sp.isSavedForPreview ? ' · Saved' : ''}
-                  </p>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
       </div>
+
+      {/* Clear All Confirmation Modal */}
+      {showConfirmClearAll && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-slate-200 rounded-lg max-w-sm w-full p-5 shadow-xl space-y-4">
+            <div className="flex items-center gap-2.5 text-red-700">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <h3 className="text-sm font-bold text-slate-900">Clear All Saved Layouts?</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              This will permanently delete all {savedProjects.length} saved station layout datasets from the application. Your workspace will be reset to a fresh upload state.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmClearAll(false)}
+                className="px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClearAll}
+                className="px-3.5 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md shadow-xs"
+              >
+                Yes, Clear All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

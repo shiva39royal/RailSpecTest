@@ -226,7 +226,7 @@ function estimatePdfPageCount(buffer: Buffer): number {
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50 MB max engineering drawing
+    fileSize: 100 * 1024 * 1024, // 100 MB max engineering drawing
   },
 });
 
@@ -240,7 +240,8 @@ process.on('unhandledRejection', (reason) => {
 
 async function startServer() {
   const app = express();
-  app.use(express.json({ limit: '40mb' }));
+  app.use(express.json({ limit: '120mb' }));
+  app.use(express.urlencoded({ limit: '120mb', extended: true }));
 
   // 0. Lightweight Health & Wake-Up Probe (always JSON, never cached)
   app.get('/api/health', (_req, res) => {
@@ -266,7 +267,7 @@ async function startServer() {
         if (err instanceof multer.MulterError) {
           if (err.code === 'LIMIT_FILE_SIZE') {
             return res.status(413).json({
-              error: 'Drawing file exceeds the 50 MB maximum upload limit.',
+              error: 'Drawing file exceeds the 100 MB maximum upload limit.',
             });
           }
           return res.status(400).json({ error: `Upload error: ${err.message}` });
@@ -552,7 +553,7 @@ async function startServer() {
     }
   });
 
-  // 7. Workspace Project Persistence (Save / List / Load)
+  // 7. Workspace Project Persistence (Save / List / Load / Delete)
   app.get('/api/projects', (_req, res) => {
     try {
       const files = fs.readdirSync(PROJECTS_DIR).filter((f) => f.endsWith('.json'));
@@ -560,6 +561,12 @@ async function startServer() {
         .map((f) => {
           try {
             const p = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, f), 'utf8'));
+            const totalRows = p.tables
+              ? Object.values(p.tables).reduce(
+                  (sum: number, r: any) => sum + (Array.isArray(r) ? r.length : 0),
+                  0
+                )
+              : 0;
             return {
               id: p.id,
               name: p.name,
@@ -567,6 +574,8 @@ async function startServer() {
               stationName: p.metadata?.stationName || '',
               stationId: p.metadata?.stationId || '',
               drawingCount: p.drawings?.length || 0,
+              totalRows,
+              componentsCount: Array.isArray(p.components) ? p.components.length : 0,
               isSavedForPreview: Boolean(p.isSavedForPreview),
             };
           } catch {
@@ -579,6 +588,52 @@ async function startServer() {
       return res.status(500).json({ error: (err as Error).message });
     }
   });
+
+  // Bulk delete or clear all projects (supports both DELETE and POST)
+  const handleBulkDeleteProjects = (req: express.Request, res: express.Response) => {
+    try {
+      const { ids } = (req.body || {}) as { ids?: string[] };
+      if (Array.isArray(ids) && ids.length > 0) {
+        for (const id of ids) {
+          const safeId = String(id).replace(/[^a-zA-Z0-9_-]/g, '');
+          const target = safeResolveInDir(PROJECTS_DIR, `${safeId}.json`);
+          if (fs.existsSync(target)) {
+            fs.unlinkSync(target);
+          }
+        }
+        return res.json({ deletedCount: ids.length, ids });
+      }
+      // Clear all saved projects
+      const files = fs.readdirSync(PROJECTS_DIR).filter((f) => f.endsWith('.json'));
+      for (const file of files) {
+        fs.unlinkSync(path.join(PROJECTS_DIR, file));
+      }
+      return res.json({ deletedCount: files.length, clearedAll: true });
+    } catch (err) {
+      return res.status(500).json({ error: (err as Error).message });
+    }
+  };
+
+  app.delete('/api/projects', handleBulkDeleteProjects);
+  app.post('/api/projects/delete', handleBulkDeleteProjects);
+  app.post('/api/projects/clear-all', handleBulkDeleteProjects);
+
+  // Single project deletion (supports both DELETE and POST)
+  const handleSingleDeleteProject = (req: express.Request, res: express.Response) => {
+    try {
+      const projectId = req.params.id.replace(/[^a-zA-Z0-9_-]/g, '');
+      const targetPath = safeResolveInDir(PROJECTS_DIR, `${projectId}.json`);
+      if (fs.existsSync(targetPath)) {
+        fs.unlinkSync(targetPath);
+      }
+      return res.json({ deleted: true, id: projectId });
+    } catch (err) {
+      return res.status(500).json({ error: (err as Error).message });
+    }
+  };
+
+  app.delete('/api/projects/:id', handleSingleDeleteProject);
+  app.post('/api/projects/:id/delete', handleSingleDeleteProject);
 
   app.post('/api/projects/:id', (req, res) => {
     try {

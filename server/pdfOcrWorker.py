@@ -28,14 +28,18 @@ def clean_ocr_token(raw):
     return s.strip()
 
 def is_toc_document(doc):
-    """Detect if the PDF is a Table of Control / Station Configuration testing document."""
+    """Detect if the PDF is an explicit Table of Control / Station Configuration testing document (NOT a station layout drawing)."""
     for p in range(min(3, len(doc))):
         t = doc[p].get_text("text").upper()
         if not t.strip():
             pix = doc[p].get_pixmap(dpi=120)
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
             t = pytesseract.image_to_string(img).upper()
-        if any(kw in t for kw in ['TABLE OF CONTROL', 'STATION CONFIGURATION DATA TESTING', 'CHECK RFID SEQUENCE', 'ENTRY SIGNAL', 'REQUIRES POINTS', 'TCAS', 'TOC NO']):
+        # Explicit TOC title headers
+        if 'TABLE OF CONTROL' in t or 'TOC NO' in t or 'STATION CONFIGURATION DATA TESTING' in t:
+            return True
+        # Explicit TOC multi-column combination headers (never single keywords)
+        if ('ENTRY SIGNAL' in t and 'MOVEMENT AUTHORITY' in t) or ('CHECK RFID SEQUENCE' in t and 'TINS REQUIRES' in t):
             return True
     return False
 
