@@ -8,7 +8,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch server.ts",
+    "dev": "tsx watch --exclude \"dist-installer/**\" --exclude \"dist/**\" --exclude \"dist-server/**\" --exclude \"data/**\" server.ts",
     "start": "tsx server.ts",
     "build": "vite build",
     "build:server": "esbuild server.ts --bundle --platform=node --format=esm --target=node18 --outfile=dist-server/server.mjs --external:vite --external:fsevents --external:esbuild --external:libredwg-web",

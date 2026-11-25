@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -113,13 +113,17 @@ function startBackendServer(callback) {
 function createWindow() {
   const windowIcon = fs.existsSync(ICON_PATH) ? ICON_PATH : ICON_PNG;
 
+  // Remove default File / Edit / View / Window menu bar completely
+  Menu.setApplicationMenu(null);
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1080,
     minHeight: 700,
-    title: 'X-Tractor - KAVACH Table of Control Studio',
+    title: 'X-tractor - KAVACH Table of Control Studio',
     icon: windowIcon,
+    autoHideMenuBar: true,
     backgroundColor: '#0f172a',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

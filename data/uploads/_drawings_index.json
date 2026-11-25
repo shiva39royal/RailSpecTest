@@ -35,5 +35,64 @@
         }
       }
     }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\public\\assets\\aistudio\\Railway_Spec_d97cd2c7.pdf",
+    "drawing": {
+      "id": "drw_spec_8b17a043",
+      "fileName": "RDSO_SPN_196_2020_KAVACH_Spec_Amdt6.pdf",
+      "format": "PDF",
+      "sizeBytes": 6636345,
+      "uploadedAt": "2026-11-25T10:16:20.769Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Loaded RDSO/SPN/196/2020 V4.0 Amdt-6 PDF (39 pages).",
+        "Navigate to any layout sheet (e.g., Page 15 or Page 35) in Drawing Viewer before running extraction."
+      ],
+      "pageCount": 52,
+      "fileUrl": "/api/drawings/drw_spec_8b17a043/file",
+      "pdfMetadata": {
+        "pageCount": 52,
+        "title": "RDSO KAVACH Control Table Guidelines"
+      }
+    }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_82d51a16-a92.pdf",
+    "drawing": {
+      "id": "drw_82d51a16-a92",
+      "fileName": "JANKAMPET JN.pdf",
+      "format": "PDF",
+      "sizeBytes": 4745130,
+      "uploadedAt": "2026-11-25T10:28:06.118Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated PDF signature (PDF 1.4).",
+        "Detected 1 PDF sheet. Tight drawing border: 1134×4414 pt."
+      ],
+      "pageCount": 1,
+      "fileUrl": "/api/drawings/drw_82d51a16-a92/file",
+      "pdfMetadata": {
+        "pageCount": 1,
+        "width": 1133.76,
+        "height": 4414.32,
+        "contentBounds": {
+          "pageNumber": 1,
+          "pageWidth": 1133.76,
+          "pageHeight": 4414.32,
+          "llx": 0,
+          "lly": 0,
+          "urx": 1133.76,
+          "ury": 4414.32,
+          "cropX": 0,
+          "cropY": 0,
+          "cropWidth": 1133.76,
+          "cropHeight": 4414.32,
+          "trimmedRatio": 0
+        }
+      }
+    }
   }
 ]

@@ -1213,15 +1213,6 @@ export default function App() {
                   Save & Preview
                 </button>
               )}
-            <button
-              type="button"
-              onClick={() => setIsLandingOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
-              title="Open X-Tractor Welcome Banner & Quick Start"
-            >
-              <img src="/assets/icon.png" alt="X-Tractor Train Icon" className="w-3.5 h-3.5 object-contain rounded-xs" />
-              <span className="hidden sm:inline">Welcome Banner</span>
-            </button>
           </div>
         </header>
 
@@ -1366,13 +1357,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Landing Page Modal on Startup & on Demand */}
+      {/* Full-Window Welcome Screen on Startup */}
       <LandingPageModal
         isOpen={isLandingOpen}
         onClose={() => setIsLandingOpen(false)}
-        onStartUpload={() => setActiveNav('upload')}
-        onLoadSample={handleLoadSampleStation}
-        onViewTables={() => setActiveNav('tables')}
       />
     </div>
   );
