@@ -460,9 +460,9 @@ export function GeneratedTablesWorkspace({
   return (
     <div className="space-y-4">
       {/* Top Action Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">
               Editable KAVACH Control & Profile Tables
             </h1>
@@ -472,12 +472,15 @@ export function GeneratedTablesWorkspace({
           </div>
 
           {currentProjectId && (
-            <StationLayoutSelector
-              layouts={savedProjects}
-              selectedLayoutId={currentProjectId || null}
-              onSelectLayout={(id) => onLoadProject?.(id)}
-              placeholder="Select Station Layout..."
-            />
+            <div className="shrink-0 ml-auto">
+              <StationLayoutSelector
+                layouts={savedProjects}
+                selectedLayoutId={currentProjectId || null}
+                onSelectLayout={(id) => onLoadProject?.(id)}
+                placeholder="Select Station Layout..."
+                align="right"
+              />
+            </div>
           )}
         </div>
 

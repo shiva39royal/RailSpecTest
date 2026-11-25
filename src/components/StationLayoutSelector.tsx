@@ -16,6 +16,7 @@ interface StationLayoutSelectorProps {
   onSelectLayout: (layoutId: string) => void;
   placeholder?: string;
   className?: string;
+  align?: 'left' | 'right';
 }
 
 export function StationLayoutSelector({
@@ -24,6 +25,7 @@ export function StationLayoutSelector({
   onSelectLayout,
   placeholder = 'Select Station Layout...',
   className = '',
+  align = 'left',
 }: StationLayoutSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -120,7 +122,11 @@ export function StationLayoutSelector({
 
       {/* Dropdown Menu Popover */}
       {isOpen && (
-        <div className="absolute left-0 mt-2 z-50 w-80 sm:w-96 bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1">
+        <div
+          className={`absolute ${
+            align === 'right' ? 'right-0' : 'left-0'
+          } mt-2 z-50 w-80 sm:w-96 bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1`}
+        >
           {/* Popover Header */}
           <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
             <div>
