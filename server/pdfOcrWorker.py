@@ -594,64 +594,99 @@ def process_pdf(pdf_path, page_num=1):
         page.set_rotation(best_rot)
         rot_page_rect = page.rect
         is_rot = best_rot in (90, 270)
-        
-        # Select DPI based on size: 350-400 DPI for high quality layout text
-        dpi = 400 if clip_h < 300 and not is_rot else (200 if (rot_page_rect.width > 4000 or rot_page_rect.height > 4000) else 250)
-        pix = page.get_pixmap(clip=None if is_rot else clip_rect, dpi=dpi)
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-        
-        ocr_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
-        n_items = len(ocr_data['text'])
-        
-        scale_x = pix.width / (rot_page_rect.width if is_rot else clip_w)
-        scale_y = pix.height / (rot_page_rect.height if is_rot else clip_h)
-        
-        for i in range(n_items):
-            raw_word = ocr_data['text'][i].strip()
-            conf = int(ocr_data['conf'][i])
-            if not raw_word:
-                continue
-            
-            clean_word = clean_ocr_token(raw_word)
-            if not clean_word:
-                continue
 
-            # Keep even low-confidence tokens if they match railway identifiers
-            is_railway_id = bool(re.search(r'R-?\d{2,4}|[SNTGLAX]-?\d{1,3}|[A-Z]{2,10}|^\d{1,4}[A-Z]?$', clean_word))
-            if conf < 15 and not is_railway_id:
-                continue
+        # Build OCR tile list: for wide strip layouts (like railway SIP/RFID plans),
+        # tile horizontally into overlapping ~550-650 DPI crops with --psm 11 so tiny 3pt SHX text
+        # is 25-35px tall and never misread (e.g. N-46 vs P-46, or random noise as '7').
+        ocr_tiles = []
+        if not is_rot and (clip_h < 350 or clip_w > clip_h * 2.2):
+            num_tiles = max(4, min(6, int(round(clip_w / max(clip_h * 1.1, 120.0)))))
+            tile_w = clip_w / num_tiles
+            overlap = tile_w * 0.12
+            target_scale = min(8.0, max(5.0, 2200.0 / max(clip_h, 1.0)))
+            for ti in range(num_tiles):
+                tx0 = max(clip_rect.x0, clip_rect.x0 + ti * tile_w - (overlap if ti > 0 else 0.0))
+                tx1 = min(clip_rect.x1, clip_rect.x0 + (ti + 1) * tile_w + (overlap if ti < num_tiles - 1 else 0.0))
+                t_rect = pymupdf.Rect(tx0, clip_rect.y0, tx1, clip_rect.y1)
+                ocr_tiles.append((t_rect, target_scale, '--psm 11'))
+        else:
+            dpi = 200 if (rot_page_rect.width > 4000 or rot_page_rect.height > 4000) else 250
+            ocr_tiles.append((None if is_rot else clip_rect, dpi / 72.0, ''))
 
-            px, py, pw, ph = ocr_data['left'][i], ocr_data['top'][i], ocr_data['width'][i], ocr_data['height'][i]
-            
-            if is_rot:
-                pt_x = (px + pw / 2) / scale_x
-                pt_y = rot_page_rect.height - (py + ph / 2) / scale_y
-                pt_h = ph / scale_y
+        seen_ocr_pts = []
+        for tile_rect, tile_scale, tess_cfg in ocr_tiles:
+            if tile_rect is None:
+                pix = page.get_pixmap(matrix=pytesseract and pymupdf.Matrix(tile_scale, tile_scale))
+                t_x0, t_y0 = 0.0, 0.0
+                t_w, t_h = rot_page_rect.width, rot_page_rect.height
             else:
-                pt_x = clip_rect.x0 + (px + pw / 2) / scale_x
-                pt_y = page_h - (clip_rect.y0 + (py + ph / 2) / scale_y)
-                pt_h = ph / scale_y
+                pix = page.get_pixmap(clip=tile_rect, matrix=pymupdf.Matrix(tile_scale, tile_scale))
+                t_x0, t_y0 = tile_rect.x0, tile_rect.y0
+                t_w, t_h = max(1.0, tile_rect.width), max(1.0, tile_rect.height)
 
-            tid = f"ocr_txt_{seq}"
-            text_annotations.append({
-                "id": tid,
-                "text": clean_word,
-                "x": round(pt_x, 2),
-                "y": round(pt_y, 2),
-                "height": max(1.0, round(pt_h, 2)),
-                "layer": "OCR_TEXT",
-                "confidence": conf
-            })
-            entities.append({
-                "id": tid,
-                "type": "TEXT",
-                "layer": "OCR_TEXT",
-                "color": "#0f172a",
-                "center": {"x": round(pt_x, 2), "y": round(pt_y, 2)},
-                "text": clean_word,
-                "height": max(1.0, round(pt_h, 2))
-            })
-            seq += 1
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            ocr_data = pytesseract.image_to_data(img, config=tess_cfg, output_type=pytesseract.Output.DICT)
+            n_items = len(ocr_data['text'])
+            scale_x = pix.width / t_w
+            scale_y = pix.height / t_h
+
+            for i in range(n_items):
+                raw_word = ocr_data['text'][i].strip()
+                conf = int(ocr_data['conf'][i])
+                if not raw_word:
+                    continue
+
+                clean_word = clean_ocr_token(raw_word)
+                if not clean_word:
+                    continue
+
+                # Strict noise filter: reject low-confidence tokens and low-conf bare 1-2 digit specks
+                if conf < 20:
+                    continue
+                if re.match(r'^\d{1,2}$', clean_word) and conf < 30:
+                    continue
+
+                px, py, pw, ph = ocr_data['left'][i], ocr_data['top'][i], ocr_data['width'][i], ocr_data['height'][i]
+
+                if is_rot:
+                    pt_x = (px + pw / 2) / scale_x
+                    pt_y = rot_page_rect.height - (py + ph / 2) / scale_y
+                    pt_h = ph / scale_y
+                else:
+                    pt_x = t_x0 + (px + pw / 2) / scale_x
+                    pt_y = page_h - (t_y0 + (py + ph / 2) / scale_y)
+                    pt_h = ph / scale_y
+
+                # Deduplicate words across overlapping horizontal tiles
+                dup = False
+                for (sx, sy, st) in seen_ocr_pts:
+                    if st == clean_word and abs(sx - pt_x) < 6.0 and abs(sy - pt_y) < 6.0:
+                        dup = True
+                        break
+                if dup:
+                    continue
+                seen_ocr_pts.append((pt_x, pt_y, clean_word))
+
+                tid = f"ocr_txt_{seq}"
+                text_annotations.append({
+                    "id": tid,
+                    "text": clean_word,
+                    "x": round(pt_x, 2),
+                    "y": round(pt_y, 2),
+                    "height": max(1.0, round(pt_h, 2)),
+                    "layer": "OCR_TEXT",
+                    "confidence": conf
+                })
+                entities.append({
+                    "id": tid,
+                    "type": "TEXT",
+                    "layer": "OCR_TEXT",
+                    "color": "#0f172a",
+                    "center": {"x": round(pt_x, 2), "y": round(pt_y, 2)},
+                    "text": clean_word,
+                    "height": max(1.0, round(pt_h, 2))
+                })
+                seq += 1
 
     # Extract vector geometry entities from drawings if present
     circles = []
@@ -829,6 +864,146 @@ def get_pdf_bounds(pdf_path, page_num=1):
         'ury': round(ury, 2),
     }
 
+def get_pdf_metadata(pdf_path, page_num=1):
+    bounds = get_pdf_bounds(pdf_path, page_num)
+    doc = pymupdf.open(pdf_path)
+    page_idx = max(0, min(page_num - 1, len(doc) - 1))
+    page = doc[page_idx]
+    rect = page.rect
+    pw, ph = rect.width, rect.height
+
+    # Convert tight ink bounds (Y-up) into PyMuPDF top-down Rect
+    x0 = max(0.0, float(bounds.get('llx', 0.0)))
+    y0 = max(0.0, ph - float(bounds.get('ury', ph)))
+    x1 = min(pw, float(bounds.get('urx', pw)))
+    y1 = min(ph, ph - float(bounds.get('lly', 0.0)))
+    cw = max(10.0, x1 - x0)
+    ch = max(10.0, y1 - y0)
+
+    texts = []
+    header_texts = []
+    embedded = page.get_text("text") or ""
+    if embedded.strip():
+        texts.append(embedded)
+
+    # Render targeted high-DPI crops inside the ACTUAL drawing ink bounds:
+    # 1. Top-center station header (tall enough to include Station ID & KM below station name)
+    # 2. Full top header band, 3. Bottom-left title block, 4. Bottom-right title block
+    crops = [
+        (pymupdf.Rect(x0 + cw * 0.30, y0, x0 + cw * 0.70, y0 + ch * 0.38), min(7.0, max(5.0, 2400.0 / max(cw * 0.40, 1.0))), True),
+        (pymupdf.Rect(x0, y0, x1, y0 + ch * 0.25), min(5.0, max(2.8, 2800.0 / max(cw, 1.0))), True),
+        (pymupdf.Rect(x0, y0 + ch * 0.62, x0 + cw * 0.45, y1), min(6.0, max(3.5, 2200.0 / max(cw * 0.45, 1.0))), False),
+        (pymupdf.Rect(x0 + cw * 0.55, y0 + ch * 0.62, x1, y1), min(6.0, max(3.5, 2200.0 / max(cw * 0.45, 1.0))), False),
+    ]
+    for clip, scale, is_hdr in crops:
+        try:
+            pix = page.get_pixmap(matrix=pymupdf.Matrix(scale, scale), clip=clip)
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            ocr_txt = pytesseract.image_to_string(img)
+            if ocr_txt.strip():
+                texts.append(ocr_txt)
+                if is_hdr:
+                    header_texts.append(ocr_txt)
+        except Exception:
+            pass
+
+    full_text = "\n".join(texts)
+    header_text = "\n".join(header_texts)
+    station_name = ""
+    station_code = ""
+    station_id = ""
+    station_km = ""
+    division = ""
+    section = ""
+
+    generic_phrases = {
+        "LAYOUT", "PLAN", "SCALE", "TABLE", "SIGNAL", "NORMAL", "REVERSE", "MAIN",
+        "LOOP", "COMMON", "SHEET", "DRAWING", "SECTION", "DIVISION", "RAILWAY",
+        "KAVACH", "RFID", "TIN", "TRACK", "CIRCUIT", "OVERLAP", "ROUTE", "NOTES",
+        "TEMPLATE", "SIGNALLING", "INTERLOCKING", "APPROVED", "CHECKED", "PREPARED",
+        "AVOIDANCE SYSTEM", "COLLISION AVOIDANCE", "SYSTEM", "TCAS", "INDIAN RAILWAYS",
+    }
+
+    # 1. Station Name (Code), e.g. CHITGIDDA (CTF), JANAKAMPET (JKM)
+    for line in full_text.splitlines():
+        clean = re.sub(r'\s+', ' ', line).strip()
+        if not clean:
+            continue
+        m_nc = re.search(r'\b([A-Z][A-Z\s.-]{2,24}?)\s*\(([A-Z]{2,5})\)', clean)
+        if m_nc:
+            cand_name = m_nc.group(1).strip(" .-:")
+            cand_code = m_nc.group(2).strip()
+            up_name = cand_name.upper()
+            up_code = cand_code.upper()
+            if (
+                up_code not in {"TCAS", "RFID", "KAV", "TIN", "SIP", "TOC"}
+                and up_name not in generic_phrases
+                and not any(w in up_name for w in ["RFID", "LAYOUT", "PLAN", "TABLE", "AVOIDANCE", "SYSTEM", "RAILWAY"])
+            ):
+                station_name = station_name or cand_name
+                station_code = station_code or cand_code
+                break
+
+    if not station_name:
+        m_sn = re.search(r'Station\s*Name\s*[:=\-]?\s*([A-Za-z][A-Za-z\s.-]{2,24})', full_text, re.IGNORECASE)
+        if m_sn:
+            cand = m_sn.group(1).split('\n')[0].strip(" |_-:")
+            if cand.upper() not in generic_phrases:
+                station_name = cand
+
+    if not station_code:
+        m_sc = re.search(r'(?:Station|Stn)\s*Code\s*[:=\-]?\s*([A-Z]{2,5})\b', full_text, re.IGNORECASE)
+        if m_sc:
+            station_code = m_sc.group(1).upper()
+
+    # 2. Station ID (handle common CAD typos like "Staion ID:520" and SHX OCR "1D:520")
+    m_id = re.search(r'(?:Station|Staion|Stn\.?)\s*[I1]D\s*[:=\-]?\s*(\d{2,6})\b', header_text + "\n" + full_text, re.IGNORECASE)
+    if m_id:
+        station_id = m_id.group(1).strip()
+
+    # 3. KM Details (prioritize explicit KM in header e.g. "Km.121.80." over trackside numbers)
+    m_hdr_km = re.search(r'\bKM[\s.:=\-]*(\d{1,4}(?:\.\d{1,3})?)', header_text, re.IGNORECASE)
+    if m_hdr_km:
+        station_km = f"KM {m_hdr_km.group(1)}"
+    else:
+        m_stn_km = re.search(r'(?:STN\.?|STATION|CENTER|CENTRE)\s*KM[\s.:=\-]*(\d{1,4}(?:\.\d{1,3})?)', full_text, re.IGNORECASE)
+        if m_stn_km:
+            station_km = f"KM {m_stn_km.group(1)}"
+        else:
+            kms = []
+            for m_k in re.finditer(r'\bKM[\s.:=\-]*(\d{1,4}(?:\.\d{1,3})?)\b', full_text, re.IGNORECASE):
+                try:
+                    v = float(m_k.group(1))
+                    if 0 < v < 5000:
+                        kms.append(v)
+                except Exception:
+                    pass
+            if len(kms) == 1:
+                station_km = f"KM {kms[0]}"
+            elif len(kms) > 1:
+                mn, mx = min(kms), max(kms)
+                station_km = f"KM {mn}" if abs(mn - mx) < 0.001 else f"KM {mn} - {mx}"
+
+    # 4. Division / Section
+    m_div = re.search(r'([A-Za-z]+)\s+Division\b', full_text, re.IGNORECASE)
+    if m_div:
+        division = m_div.group(1).strip()
+    m_sec = re.search(r'Section\s*[:=\-]?\s*([A-Za-z0-9\s\-/]{3,28})', full_text, re.IGNORECASE)
+    if m_sec:
+        sec_cand = m_sec.group(1).split('\n')[0].strip(" |_-:")
+        if not sec_cand.upper().startswith("B "):
+            section = sec_cand
+
+    return {
+        'stationName': station_name,
+        'stationCode': station_code,
+        'stationId': station_id,
+        'stationKm': station_km,
+        'division': division,
+        'section': section,
+    }
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: python pdfOcrWorker.py <pdf_path> [page_num] [output_json_path]")
@@ -839,6 +1014,13 @@ def main():
         page_num = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else 1
         bounds = get_pdf_bounds(pdf_path, page_num)
         print(json.dumps(bounds, ensure_ascii=False))
+        return
+
+    if '--metadata' in sys.argv:
+        pdf_path = sys.argv[1]
+        page_num = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else 1
+        meta = get_pdf_metadata(pdf_path, page_num)
+        print(json.dumps(meta, ensure_ascii=False))
         return
         
     pdf_path = sys.argv[1]

@@ -18,7 +18,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import type { CadDocumentData, CadEntity, UploadedDrawing } from '../types/project';
+import type { CadDocumentData, CadEntity, DocumentMetadata, UploadedDrawing } from '../types/project';
 import { fetchJsonWithRetry } from '../utils/http';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -38,6 +38,7 @@ interface CropRect {
 
 interface DrawingViewerProps {
   drawing: UploadedDrawing | null;
+  metadata?: Partial<DocumentMetadata>;
   pageNumber: number;
   onPageNumberChange: (page: number) => void;
   onStartExtraction: () => void;
@@ -46,12 +47,98 @@ interface DrawingViewerProps {
   onNavigateUpload: () => void;
 }
 
+interface DetectedLayoutMeta {
+  stationName: string;
+  stationCode: string;
+  stationId: string;
+  kmDetails: string;
+  division?: string;
+  section?: string;
+}
+
+const GENERIC_HEADER_WORDS = new Set([
+  'LAYOUT', 'PLAN', 'SCALE', 'TABLE', 'SIGNAL', 'NORMAL', 'REVERSE', 'MAIN',
+  'LOOP', 'COMMON', 'SHEET', 'DRAWING', 'SECTION', 'DIVISION', 'RAILWAY',
+  'KAVACH', 'RFID', 'TIN', 'TRACK', 'CIRCUIT', 'OVERLAP', 'ROUTE', 'NOTES',
+]);
+
+function extractLayoutMetadataFromTexts(texts: string[]): DetectedLayoutMeta {
+  let stationName = '';
+  let stationCode = '';
+  let stationId = '';
+  const kmValues: number[] = [];
+  let explicitStationKm = '';
+
+  for (const raw of texts) {
+    const clean = raw.replace(/\s+/g, ' ').trim();
+    if (!clean) continue;
+
+    // 1. Station Name + Code e.g. "CHITGIDDA (CTF)"
+    if (!stationName || !stationCode) {
+      const mNameCode = clean.match(/\b([A-Z][A-Z\s.-]{2,24}?)\s*\(([A-Z]{2,5})\)/);
+      if (mNameCode) {
+        const candName = mNameCode[1].trim();
+        const candCode = mNameCode[2].trim();
+        if (!GENERIC_HEADER_WORDS.has(candName.toUpperCase())) {
+          stationName = stationName || candName;
+          stationCode = stationCode || candCode;
+        }
+      }
+    }
+
+    // 2. Explicit Station Name / Code labels
+    if (!stationName) {
+      const mStnName = clean.match(/\bSTATION\s*NAME\s*[:=\-]?\s*([A-Z][A-Z\s.-]{2,24})/i);
+      if (mStnName) stationName = mStnName[1].trim();
+    }
+    if (!stationCode) {
+      const mStnCode = clean.match(/\b(?:STATION|STN)\s*CODE\s*[:=\-]?\s*([A-Z]{2,5})\b/i);
+      if (mStnCode) stationCode = mStnCode[1].toUpperCase();
+    }
+
+    // 3. Station ID e.g. "STATION ID: 12021", "Staion ID:520", "Staion 1D:520"
+    if (!stationId) {
+      const mId = clean.match(/\b(?:STATION|STAION|STN\.?)\s*[I1]D\s*[:=\-]?\s*(\d{2,6})\b/i);
+      if (mId) stationId = mId[1];
+    }
+
+    // 4. Explicit Station KM or KM chainages (e.g. "Km.121.80.", "KM 118.450")
+    const mStnKm = clean.match(/\b(?:STN\.?|STATION|CENTER|CENTRE)\s*KM[\s.:=\-]*(\d{1,4}(?:\.\d{1,3})?)\b/i);
+    if (mStnKm && !explicitStationKm) {
+      explicitStationKm = mStnKm[1];
+    }
+
+    const kmRegex = /\bKM[\s.:=\-]*(\d{1,4}(?:\.\d{1,3})?)\b/gi;
+    let kmMatch: RegExpExecArray | null;
+    while ((kmMatch = kmRegex.exec(clean)) !== null) {
+      const val = Number.parseFloat(kmMatch[1]);
+      if (Number.isFinite(val) && val > 0 && val < 5000) {
+        kmValues.push(val);
+      }
+    }
+  }
+
+  let kmDetails = '';
+  if (explicitStationKm) {
+    kmDetails = `KM ${explicitStationKm}`;
+  } else if (kmValues.length === 1) {
+    kmDetails = `KM ${kmValues[0]}`;
+  } else if (kmValues.length > 1) {
+    const minKm = Math.min(...kmValues);
+    const maxKm = Math.max(...kmValues);
+    kmDetails = minKm === maxKm ? `KM ${minKm}` : `KM ${minKm} - ${maxKm}`;
+  }
+
+  return { stationName, stationCode, stationId, kmDetails };
+}
+
 function clampZoom(val: number): number {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round(val * 1000) / 1000));
 }
 
 export function DrawingViewer({
   drawing,
+  metadata,
   pageNumber,
   onPageNumberChange,
   onStartExtraction,
@@ -98,6 +185,12 @@ export function DrawingViewer({
     const [cadDarkBg, setCadDarkBg] = useState(true);
     const [showLayersPanel, setShowLayersPanel] = useState(false);
     const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
+    const [detectedMeta, setDetectedMeta] = useState<DetectedLayoutMeta>({
+      stationName: '',
+      stationCode: '',
+      stationId: '',
+      kmDetails: '',
+    });
     const [cursorWorldCoord, setCursorWorldCoord] = useState<{ x: number; y: number } | null>(null);
     const [hoveredEntity, setHoveredEntity] = useState<CadEntity | null>(null);
     const cadTransformRef = useRef<{ scale: number; offsetX: number; offsetY: number; minX: number; maxY: number } | null>(
@@ -107,6 +200,71 @@ export function DrawingViewer({
     useEffect(() => {
       setZoomInput(String(Math.round(zoom * 100)));
     }, [zoom]);
+
+    // Extract live station metadata preview from loaded CAD annotations or backend PDF OCR metadata
+    useEffect(() => {
+      if (!drawing) {
+        setDetectedMeta({ stationName: '', stationCode: '', stationId: '', kmDetails: '' });
+        return;
+      }
+      if (drawing.format !== 'PDF') {
+        const texts = (drawing.cadData?.textAnnotations || []).map((t) => t.text || '');
+        setDetectedMeta(extractLayoutMetadataFromTexts(texts));
+        return;
+      }
+      let cancelled = false;
+
+      // 1. Try fast client-side embedded PDF text first if available
+      const doc = pdfDocRef.current;
+      if (doc) {
+        const safePage = Math.max(1, Math.min(pageNumber, doc.numPages));
+        doc
+          .getPage(safePage)
+          .then((page) => page.getTextContent())
+          .then((tc) => {
+            if (cancelled) return;
+            const texts = tc.items
+              .map((it: any) => (typeof it?.str === 'string' ? it.str : ''))
+              .filter(Boolean);
+            const parsed = extractLayoutMetadataFromTexts(texts);
+            if (parsed.stationName || parsed.stationCode || parsed.stationId || parsed.kmDetails) {
+              setDetectedMeta(parsed);
+            }
+          })
+          .catch(() => {});
+      }
+
+      // 2. Always fetch backend PyMuPDF + Tesseract title-block metadata (essential for SHX-stroked & raster PDFs)
+      fetchJsonWithRetry<{
+        metadata?: {
+          stationName?: string;
+          stationCode?: string;
+          stationId?: string;
+          stationKm?: string;
+          division?: string;
+          section?: string;
+        };
+      }>(`/api/drawings/${drawing.id}/metadata?page=${pageNumber}`, () => ({ method: 'GET' }), {
+        maxRetries: 1,
+      })
+        .then((res) => {
+          if (cancelled || !res?.metadata) return;
+          const m = res.metadata;
+          setDetectedMeta((prev) => ({
+            stationName: m.stationName || prev.stationName,
+            stationCode: m.stationCode || prev.stationCode,
+            stationId: m.stationId || prev.stationId,
+            kmDetails: m.stationKm || prev.kmDetails,
+            division: m.division || prev.division,
+            section: m.section || prev.section,
+          }));
+        })
+        .catch(() => {});
+
+      return () => {
+        cancelled = true;
+      };
+    }, [drawing?.id, drawing?.format, drawing?.cadData, pageNumber]);
 
     const resetView = useCallback(() => {
       setZoom(1);
@@ -1032,6 +1190,61 @@ export function DrawingViewer({
             </button>
           </div>
         </div>
+
+        {/* Station Layout Metadata Strip above viewport */}
+        {(() => {
+          const stationName = metadata?.stationName?.trim() || detectedMeta.stationName;
+          const stationCode = metadata?.stationCode?.trim() || detectedMeta.stationCode;
+          const stationId = metadata?.stationId?.trim() || detectedMeta.stationId;
+          const kmDetails = metadata?.stationKm?.trim() || detectedMeta.kmDetails;
+          const division = metadata?.division?.trim() || detectedMeta.division;
+          const section = metadata?.section?.trim() || detectedMeta.section;
+          return (
+            <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-1.5 px-4 py-2 bg-slate-100/80 border-b border-slate-200 text-xs">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Station Name:</span>
+                  <span className="font-semibold text-slate-900">{stationName || '—'}</span>
+                </div>
+                <div className="h-3.5 w-px bg-slate-300 hidden sm:block" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Station Code:</span>
+                  <span className="px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200 font-mono font-semibold text-blue-800">
+                    {stationCode || '—'}
+                  </span>
+                </div>
+                <div className="h-3.5 w-px bg-slate-300 hidden sm:block" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Station ID:</span>
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 font-mono font-semibold text-emerald-800">
+                    {stationId || '—'}
+                  </span>
+                </div>
+                <div className="h-3.5 w-px bg-slate-300 hidden sm:block" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">KM Details:</span>
+                  <span className="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 font-mono font-medium text-amber-900">
+                    {kmDetails || '—'}
+                  </span>
+                </div>
+              </div>
+              {(division || section) && (
+                <div className="flex items-center gap-3 text-[11px] text-slate-600">
+                  {division && (
+                    <span>
+                      Division: <strong className="text-slate-800">{division}</strong>
+                    </span>
+                  )}
+                  {section && (
+                    <span>
+                      Section: <strong className="text-slate-800">{section}</strong>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Main Viewport + Optional CAD Layer Drawer */}
         <div className="flex flex-1 min-h-0 relative">

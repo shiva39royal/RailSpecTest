@@ -1176,13 +1176,34 @@ async function runIsolatedDwgWorker(
   inputPath: string,
   outputPath: string
 ): Promise<{ ok: boolean; stderr: string }> {
-  const tsxBin = path.resolve(process.cwd(), 'node_modules', '.bin', 'tsx');
-  const workerScript = path.resolve(process.cwd(), 'server', 'dwgWorker.ts');
+  const bundledWorker = path.resolve(process.cwd(), 'dist-server', 'dwgWorker.mjs');
+  const tsxWorker = path.resolve(process.cwd(), 'server', 'dwgWorker.ts');
+  const tsxBin = path.resolve(
+    process.cwd(),
+    'node_modules',
+    '.bin',
+    process.platform === 'win32' ? 'tsx.cmd' : 'tsx'
+  );
+
+  // Prefer compiled .mjs worker in packaged Electron or when dist-server is built,
+  // falling back to tsx.cmd (Windows) / tsx (POSIX) in local dev.
+  const useBundled = fs.existsSync(bundledWorker) && (!fs.existsSync(tsxWorker) || fs.statSync(bundledWorker).mtimeMs >= fs.statSync(tsxWorker).mtimeMs);
+  const cmd = useBundled ? process.execPath : tsxBin;
+  const args = useBundled ? [bundledWorker, mode, inputPath, outputPath] : [tsxWorker, mode, inputPath, outputPath];
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    NODE_OPTIONS: '--max-old-space-size=1024',
+  };
+  if (useBundled && process.versions.electron) {
+    env.ELECTRON_RUN_AS_NODE = '1';
+  }
+
   try {
-    const { stderr } = await execFileAsync(tsxBin, [workerScript, mode, inputPath, outputPath], {
+    const { stderr } = await execFileAsync(cmd, args, {
       timeout: 25000,
       maxBuffer: 4 * 1024 * 1024,
-      env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=1024' },
+      shell: !useBundled && process.platform === 'win32',
+      env,
     });
     return { ok: fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0, stderr: stderr || '' };
   } catch (err: any) {

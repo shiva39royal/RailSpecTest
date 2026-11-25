@@ -30,7 +30,7 @@ import {
   extractComponentsFromCad,
   type DeterministicCadExtraction,
 } from './cadComponentExtractor';
-import { extractPdfPageAsCadDocument } from './pdfProcessor';
+import { extractPdfPageAsCadDocument, getPdfPageMetadata } from './pdfProcessor';
 
 export interface ExtractionRequestPayload {
   drawing: UploadedDrawing;
@@ -440,21 +440,31 @@ export async function runDynamicExtraction(
   const emptyMeta = createEmptyMetadata();
   const hints = detResult.metadataHints || {};
   const primaryTocMeta = resolvedDoc.tocMetadata || {};
+  const pdfHeaderMeta =
+    req.drawing.format === 'PDF' && req.filePath && fs.existsSync(req.filePath)
+      ? await getPdfPageMetadata(req.filePath, targetPage)
+      : null;
 
   const metadata: DocumentMetadata = {
     ...emptyMeta,
     stationName: String(
-      hints.stationName || primaryTocMeta.stationName || companionHints.stationName || ''
+      hints.stationName || primaryTocMeta.stationName || companionHints.stationName || pdfHeaderMeta?.stationName || ''
     ).trim(),
     stationCode: String(
-      hints.stationCode || primaryTocMeta.stationCode || companionHints.stationCode || ''
+      hints.stationCode || primaryTocMeta.stationCode || companionHints.stationCode || pdfHeaderMeta?.stationCode || ''
     ).trim(),
     stationId: String(
-      hints.stationId || primaryTocMeta.stationId || companionHints.stationId || ''
+      hints.stationId || primaryTocMeta.stationId || companionHints.stationId || pdfHeaderMeta?.stationId || ''
     ).trim(),
-    stationKm: String(hints.stationKm || primaryTocMeta.stationKm || companionHints.stationKm || '').trim(),
-    division: String(hints.division || primaryTocMeta.division || companionHints.division || '').trim(),
-    section: String(hints.section || primaryTocMeta.section || companionHints.section || '').trim(),
+    stationKm: String(
+      hints.stationKm || primaryTocMeta.stationKm || companionHints.stationKm || pdfHeaderMeta?.stationKm || ''
+    ).trim(),
+    division: String(
+      hints.division || primaryTocMeta.division || companionHints.division || pdfHeaderMeta?.division || ''
+    ).trim(),
+    section: String(
+      hints.section || primaryTocMeta.section || companionHints.section || pdfHeaderMeta?.section || ''
+    ).trim(),
     sectionSpeedKmph: String(hints.sectionSpeedKmph || companionHints.sectionSpeedKmph || '').trim(),
     versionControl: String(hints.versionControl || emptyMeta.versionControl).trim(),
     sipRef: String(hints.sipRef || primaryTocMeta.sipRef || companionHints.sipRef || '').trim(),

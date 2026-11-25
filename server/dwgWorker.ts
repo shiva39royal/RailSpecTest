@@ -20,7 +20,12 @@ async function main() {
   const arrayBuffer = new ArrayBuffer(buffer.byteLength);
   new Uint8Array(arrayBuffer).set(buffer);
 
-  const wasmDir = path.resolve(process.cwd(), 'node_modules/@mlightcad/libredwg-web/wasm');
+  const wasmCandidates = [
+    path.resolve(process.cwd(), 'libredwg-wasm'),
+    path.resolve(process.cwd(), 'node_modules/@mlightcad/libredwg-web/wasm'),
+    path.resolve(process.cwd(), 'app.asar.unpacked/node_modules/@mlightcad/libredwg-web/wasm'),
+  ];
+  const wasmDir = wasmCandidates.find((p) => fs.existsSync(p)) || wasmCandidates[1];
   (LibreDwg as any).instance = null;
   const libredwg = await LibreDwg.create(wasmDir);
 

@@ -178,6 +178,53 @@ function resolveWorkerScript(): string {
   return path.join(__dirname, 'pdfOcrWorker.py');
 }
 
+export interface PdfMetadataPreview {
+  stationName: string;
+  stationCode: string;
+  stationId: string;
+  stationKm: string;
+  division: string;
+  section: string;
+}
+
+/**
+ * Extracts fast station metadata (Name, Code, ID, KM, Division, Section) from a PDF page
+ * using targeted PyMuPDF + Tesseract header/title-block OCR.
+ */
+export async function getPdfPageMetadata(
+  pdfPath: string,
+  pageNumber = 1
+): Promise<PdfMetadataPreview> {
+  const safePage = Math.max(1, Math.floor(pageNumber));
+  try {
+    const pythonBin = resolvePythonBinary();
+    const workerScript = resolveWorkerScript();
+    const { stdout } = await execFileAsync(
+      pythonBin,
+      [workerScript, pdfPath, String(safePage), '--metadata'],
+      { timeout: 25000, maxBuffer: 1024 * 1024 }
+    );
+    const parsed = JSON.parse(stdout.trim());
+    return {
+      stationName: String(parsed?.stationName || ''),
+      stationCode: String(parsed?.stationCode || ''),
+      stationId: String(parsed?.stationId || ''),
+      stationKm: String(parsed?.stationKm || ''),
+      division: String(parsed?.division || ''),
+      section: String(parsed?.section || ''),
+    };
+  } catch {
+    return {
+      stationName: '',
+      stationCode: '',
+      stationId: '',
+      stationKm: '',
+      division: '',
+      section: '',
+    };
+  }
+}
+
 /**
  * Computes the exact tight vector/raster ink bounding box (drawing border extent) of a PDF page
  * using PyMuPDF (100% offline, native Python vector inspection, zero Ghostscript dependency).

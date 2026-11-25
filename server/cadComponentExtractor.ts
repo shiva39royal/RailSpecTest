@@ -356,10 +356,22 @@ export function extractComponentsFromCad(
     blockSource: entityBlockMap.get(t.id),
   }));
 
-  // Dynamic scale factor so both ~2000x300 AutoCAD DWGs and ~3000x800 Vector PDFs match proximity accurately
+  // Dynamic scale factor from ACTUAL entity/text ink extent (not blank PDF page margins!)
+  let effMinX = Infinity, effMinY = Infinity, effMaxX = -Infinity, effMaxY = -Infinity;
+  for (const t of allTexts) {
+    if (t.x < effMinX) effMinX = t.x;
+    if (t.x > effMaxX) effMaxX = t.x;
+    if (t.y < effMinY) effMinY = t.y;
+    if (t.y > effMaxY) effMaxY = t.y;
+  }
+  const effectiveWidth =
+    Number.isFinite(effMinX) && effMaxX > effMinX ? effMaxX - effMinX : cad.bounds.width;
+  const effectiveHeight =
+    Number.isFinite(effMinY) && effMaxY > effMinY ? effMaxY - effMinY : cad.bounds.height;
+
   const scaleFactor = Math.max(
-    1,
-    Math.min(3.2, Math.max(cad.bounds.width / 2100, cad.bounds.height / 360))
+    0.45,
+    Math.min(3.2, Math.max(effectiveWidth / 2100, effectiveHeight / 360))
   );
 
   // -------------------------------------------------------------------------
@@ -367,11 +379,11 @@ export function extractComponentsFromCad(
   // -------------------------------------------------------------------------
   const stationAnchors: StationAnchor[] = [];
   const stationBuildingText = allTexts.find((t) => /STATION\s+BUILDING/i.test(t.clean));
-  const stationIdTexts = allTexts.filter((t) => /STATION\s*ID\s*[:=-]?\s*\d{2,6}/i.test(t.clean));
+  const stationIdTexts = allTexts.filter((t) => /(?:STATION|STAION|STN\.?)\s*[I1]D\s*[:=-]?\s*\d{2,6}/i.test(t.clean));
 
   for (const stText of stationIdTexts) {
-    const idMatch = stText.clean.match(/STATION\s*ID\s*[:=-]?\s*(\d{2,6})/i);
-    const kmMatch = stText.clean.match(/KM\s*[:=-]?\s*(\d{1,4}\.\d{1,3})/i);
+    const idMatch = stText.clean.match(/(?:STATION|STAION|STN\.?)\s*[I1]D\s*[:=-]?\s*(\d{2,6})/i);
+    const kmMatch = stText.clean.match(/\bKM[\s.:=\-]*(\d{1,4}\.\d{1,3})/i);
     const stationId = idMatch?.[1];
     const stationKm = kmMatch?.[1];
 
@@ -476,6 +488,51 @@ export function extractComponentsFromCad(
   }
 
   // -------------------------------------------------------------------------
+  // 1b. Detect Diagonal Turnout / Crossover Switch Junctions
+  // -------------------------------------------------------------------------
+  interface TurnoutJunction {
+    mx: number;
+    my: number;
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    len: number;
+  }
+  const turnoutJunctions: TurnoutJunction[] = [];
+  for (const e of cad.entities) {
+    if ((e.type === 'LINE' || e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') && e.points && e.points.length >= 2) {
+      for (let i = 0; i < e.points.length - 1; i++) {
+        const p1 = e.points[i];
+        const p2 = e.points[i + 1];
+        const len = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        if (len < 4 * scaleFactor || len > 180 * scaleFactor) continue;
+        const angleDeg = (Math.abs(Math.atan2(p2.y - p1.y, p2.x - p1.x)) * 180) / Math.PI;
+        const normAng = angleDeg > 90 ? 180 - angleDeg : angleDeg;
+        if (normAng >= 12 && normAng <= 72) {
+          turnoutJunctions.push({
+            mx: (p1.x + p2.x) / 2,
+            my: (p1.y + p2.y) / 2,
+            x1: p1.x,
+            y1: p1.y,
+            x2: p2.x,
+            y2: p2.y,
+            len,
+          });
+        }
+      }
+    }
+  }
+
+  const isNearTurnoutJunction = (px: number, py: number, maxDist = 28 * scaleFactor): boolean =>
+    turnoutJunctions.some(
+      (tj) =>
+        Math.hypot(tj.mx - px, tj.my - py) <= maxDist ||
+        Math.hypot(tj.x1 - px, tj.y1 - py) <= maxDist * 0.8 ||
+        Math.hypot(tj.x2 - px, tj.y2 - py) <= maxDist * 0.8
+    );
+
+  // -------------------------------------------------------------------------
   // 2. Extract ALL RFID Tags + Chainage + A-Tag LOC.1/LOC.2 + Role + Facing
   // -------------------------------------------------------------------------
   const rfidRoleNames: Record<string, string> = {
@@ -495,20 +552,41 @@ export function extractComponentsFromCad(
 
   for (const t of allTexts) {
     const m = t.clean.match(/^(R[-\s]?\d+[A-Z0-9-]*)$/i);
-    if (!m) continue;
-    const rawTag = m[1].toUpperCase().replace(/\s+/g, '-').replace(/^R(\d)/, 'R-$1');
+    let rawTag = '';
+    let preMatchedTri: TriFeature | null = null;
+    if (m) {
+      rawTag = m[1].toUpperCase().replace(/\s+/g, '-').replace(/^R(\d)/, 'R-$1');
+    } else if (/^\d{3,4}[A-Z]?$/i.test(t.clean)) {
+      // Prefix-agnostic fallback: 3-4 digit number tightly co-located with a directional RFID triangle
+      let bestT: TriFeature | null = null;
+      let bestTD = Infinity;
+      for (const tri of triangles) {
+        const d = Math.hypot(tri.cx - t.x, tri.cy - t.y);
+        if (d < bestTD && d <= Math.max(tri.size * 3.5, 24 * scaleFactor)) {
+          bestTD = d;
+          bestT = tri;
+        }
+      }
+      if (!bestT) continue;
+      preMatchedTri = bestT;
+      rawTag = `R-${t.clean.toUpperCase()}`;
+    } else {
+      continue;
+    }
     const dedupKey = `${rawTag}@${Math.round(t.x / (5 * scaleFactor))}_${Math.round(t.y / (5 * scaleFactor))}`;
     if (seenRfid.has(dedupKey)) continue;
     seenRfid.add(dedupKey);
 
     // Find nearest triangle for facing direction
-    let bestTri: TriFeature | null = null;
-    let bestTriDist = Infinity;
-    for (const tri of triangles) {
-      const dist = Math.hypot(tri.cx - t.x, tri.cy - t.y);
-      if (dist < bestTriDist && dist <= Math.max(tri.size * 5, searchRadius)) {
-        bestTriDist = dist;
-        bestTri = tri;
+    let bestTri: TriFeature | null = preMatchedTri;
+    let bestTriDist = preMatchedTri ? Math.hypot(preMatchedTri.cx - t.x, preMatchedTri.cy - t.y) : Infinity;
+    if (!bestTri) {
+      for (const tri of triangles) {
+        const dist = Math.hypot(tri.cx - t.x, tri.cy - t.y);
+        if (dist < bestTriDist && dist <= Math.max(tri.size * 5, searchRadius)) {
+          bestTriDist = dist;
+          bestTri = tri;
+        }
       }
     }
 
@@ -805,10 +883,25 @@ export function extractComponentsFromCad(
       .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
   };
 
+  const hasExplicitSPrefix = allTexts.some((t) => /^S[-]?\d{1,3}(?:\s*(?:ID|D|A|B|C|CO))?$/i.test(t.clean));
+
+  const isPairedSwitchLabel = (label: string, x: number, y: number, selfId: string): boolean =>
+    /^\d{1,2}[A-Z]?$/i.test(label) &&
+    allTexts.some(
+      (other) =>
+        other.id !== selfId &&
+        other.clean.toUpperCase() === label.toUpperCase() &&
+        Math.abs(other.x - x) >= 5 * scaleFactor &&
+        Math.abs(other.x - x) <= 55 * Math.max(scaleFactor, 0.7) &&
+        Math.abs(other.y - y) >= 2 &&
+        Math.abs(other.y - y) <= 30 * Math.max(scaleFactor, 0.7)
+    );
+
   const tryParseSignalToken = (
     raw: string,
     x: number,
-    y: number
+    y: number,
+    selfId = ''
   ): { normalizedLabel: string; isCallingOn: boolean } | null => {
     const clean = raw.trim();
     if (!clean || clean.length > 15) return null;
@@ -841,24 +934,29 @@ export function extractComponentsFromCad(
       const num = suffixMatch[1];
       let suffix = suffixMatch[2] ? suffixMatch[2].toUpperCase() : 'ID';
       if (suffix === 'S' || suffix === 's') suffix = '';
-      const norm = `S${num}${suffix ? (suffix === 'ID' ? ' ID' : suffix) : ''}`;
+      const prefix = hasExplicitSPrefix ? 'S' : '';
+      const norm = `${prefix}${num}${suffix ? (suffix === 'ID' ? ' ID' : suffix) : ''}`;
       const isCo = suffix === 'A' || suffix === 'CO';
       return { normalizedLabel: norm, isCallingOn: isCo };
     }
 
-    // 3. Standalone numeric signal number (1-99), e.g., 1, 3, 4, 24, 25, 26, 27, 30
-    // Must be close to an RFID foot tag or a detected signal head circle
+    // 3. Standalone numeric signal number (1-99), e.g., 1, 3, 4, 24, 25, 26, 28
+    // MUST be anchored directly to a detected signal-head circle and NOT be a paired turnout switch number
     const numMatch = clean.match(/^(\d{1,2})$/);
     if (numMatch) {
       const num = numMatch[1];
-      const hasFootTag = rfidTags.some((rt) => Math.hypot(rt.x - x, rt.y - y) <= 75 * scaleFactor);
-      const hasCircle = signalClusters.some((grp) => {
-        const cx = grp.reduce((acc, g) => acc + g.x, 0) / grp.length;
-        const cy = grp.reduce((acc, g) => acc + g.y, 0) / grp.length;
-        return Math.hypot(cx - x, cy - y) <= 65 * scaleFactor;
-      });
-      if (hasFootTag || hasCircle) {
-        return { normalizedLabel: `S${num}`, isCallingOn: false };
+      if (isPairedSwitchLabel(clean, x, y, selfId)) return null;
+      const circleRadius = Math.max(38 * scaleFactor, 26);
+      const hasCircle =
+        signalClusters.some((grp) => {
+          const cx = grp.reduce((acc, g) => acc + g.x, 0) / grp.length;
+          const cy = grp.reduce((acc, g) => acc + g.y, 0) / grp.length;
+          return Math.hypot(cx - x, cy - y) <= circleRadius;
+        }) ||
+        detectedCircles.some((c) => Math.hypot(c.x - x, c.y - y) <= circleRadius);
+      if (hasCircle && !isNearTurnoutJunction(x, y, Math.max(12 * scaleFactor, 8))) {
+        const prefix = hasExplicitSPrefix ? 'S' : '';
+        return { normalizedLabel: `${prefix}${num}`, isCallingOn: false };
       }
     }
 
@@ -881,7 +979,7 @@ export function extractComponentsFromCad(
 
     for (const t of nearby) {
       if (usedSignalTexts.has(t.id)) continue;
-      const parsed = tryParseSignalToken(t.clean, t.x, t.y);
+      const parsed = tryParseSignalToken(t.clean, t.x, t.y, t.id);
       if (!parsed) continue;
       if (parsed.isCallingOn && !callingOnMatch) {
         callingOnMatch = { token: t, norm: parsed.normalizedLabel };
@@ -969,7 +1067,7 @@ export function extractComponentsFromCad(
   // Capture remaining running signal labels (e.g., S1, S1D, S1 ID, S1A, S3, S25, S30A) directly from spatial text
   for (const t of allTexts) {
     if (usedSignalTexts.has(t.id)) continue;
-    const parsed = tryParseSignalToken(t.clean, t.x, t.y);
+    const parsed = tryParseSignalToken(t.clean, t.x, t.y, t.id);
     if (!parsed) continue;
 
     // Skip duplicate text already matched within close proximity
@@ -1023,6 +1121,7 @@ export function extractComponentsFromCad(
 
   // Infer traffic direction for any signals/tags lacking triangle facing (common on vector PDFs):
   // Dynamically derive direction per line from Distant/Inner Distant -> Home signal relative X positions!
+  const yBandTol = Math.max(effectiveHeight * 0.11, 10);
   const lineFacingMap = new Map<string, 'RIGHT' | 'LEFT'>();
   for (const s of signals) {
     if (s.facing !== 'UNKNOWN' && !s.line.includes('LOOP') && !lineFacingMap.has(s.line)) {
@@ -1148,16 +1247,17 @@ export function extractComponentsFromCad(
 
   for (const t of allTexts) {
     const c = t.clean;
-    // 1. TIN: N-46, (N-46), N-205, TIN-12, (TIN-01)
+    // 1. TIN: N-46, (N-46), N-205, TIN-12, (TIN-01), or parenthesized track TIN e.g. (53)
     const tinMatch = c.match(/^\(?((?:TIN|N)[-\s]?\d+[A-Z0-9]*)\)?$/i);
+    const parenTinMatch = !tinMatch ? c.match(/^\((\d{1,3}[A-Z]?)\)$/i) : null;
     if (
-      tinMatch &&
+      (tinMatch || (parenTinMatch && !isNearTurnoutJunction(t.x, t.y, 20 * scaleFactor))) &&
       !/^NOMINAL/i.test(c) &&
       !/^NO\b/i.test(c) &&
       !/^NOT\b/i.test(c) &&
       !/^NONE/i.test(c)
     ) {
-      let normTin = tinMatch[1].toUpperCase();
+      let normTin = tinMatch ? tinMatch[1].toUpperCase() : `N-${parenTinMatch![1].toUpperCase()}`;
       if (/^N\d+/i.test(normTin)) {
         normTin = `N-${normTin.slice(1)}`;
       } else if (/^TIN\d+/i.test(normTin)) {
@@ -1171,10 +1271,27 @@ export function extractComponentsFromCad(
       continue;
     }
 
-    // 2. Pointers / Turnout Points: P-17, PT-101, IN-46, P11, 11PT
+    // 2. Pointers / Turnout Points: P-17, PT-101, IN-46, P11, 11PT, OR bare numeric/AB label near a turnout switch junction
+    // or appearing as a diagonal switch-end pair across adjacent tracks (11, 12, 13, 17, 18, 19, 20)
+    const isExplicitPoint =
+      /^(?:P-[A-Z0-9]{1,4}|PT[-\s]?\d{1,3}[A-Z0-9]*|P\d{1,3}[A-Z]?|IN[-\s]?\d{1,3}[A-Z0-9]*)$/i.test(c) ||
+      /^\d{1,3}[A-Z]?\s*(?:A|B)?\s*PT$/i.test(c);
+    const nearAnyCircle =
+      signalClusters.some((grp) => {
+        const cx = grp.reduce((acc, g) => acc + g.x, 0) / grp.length;
+        const cy = grp.reduce((acc, g) => acc + g.y, 0) / grp.length;
+        return Math.hypot(cx - t.x, cy - t.y) <= Math.max(20 * scaleFactor, 14);
+      }) ||
+      detectedCircles.some((dc) => Math.hypot(dc.x - t.x, dc.y - t.y) <= Math.max(20 * scaleFactor, 14));
+    const isPairedSwitchNum = isPairedSwitchLabel(c, t.x, t.y, t.id);
+    const isBareTurnoutPoint =
+      !isExplicitPoint &&
+      /^\d{1,3}[A-Z]?$/i.test(c) &&
+      !usedSignalTexts.has(t.id) &&
+      !nearAnyCircle &&
+      (isNearTurnoutJunction(t.x, t.y, 26 * Math.max(scaleFactor, 0.7)) || isPairedSwitchNum);
     if (
-      (/^(?:P-[A-Z0-9]+|PT[-\s]?\d+[A-Z0-9]*|P\d+[A-Z0-9]*|IN[-\s]?\d+[A-Z0-9]*)$/i.test(c) ||
-        /^\d+[A-Z]?\s*(?:A|B)?\s*PT$/i.test(c)) &&
+      (isExplicitPoint || isBareTurnoutPoint) &&
       !/^DP/i.test(c) &&
       !/^NOMINAL/i.test(c) &&
       !/^NO\b/i.test(c)
@@ -1214,9 +1331,9 @@ export function extractComponentsFromCad(
       continue;
     }
 
-    // 4. Track Circuit / Axle Counter: 08T, 09T, C01T, 08AC, 3329AC, UP_BPAC-1, DMT, UMT, CLT, ULT, MLT, LLT, RMT, LMT, CMT, TC-101, 1AT, 2AT, 3AT
+    // 4. Track Circuit / Axle Counter: 08T, 09T, C01T, 08AC, 3329AC, UP_BPAC-1, DMT, DMAT, DMBT, UMT, UMAT, UMBT, CLT, CLAT, CLBT, ULT, ULAT, ULBT, MLT, LLT, RMT, LMT, CMT, 3/4T, 26-28T, TC-101, 1AT
     if (
-      /^(?:\d+[A-Z]{0,2}T|C\d+T|\d+AC|(?:UP|DN)[_-]?BPAC[-\s]?\d+|DMT|UMT|CLT|ULT|MLT|LLT|RMT|LMT|CMT|TC[-\s]?\d+[A-Z0-9]*|\d+[A-Z]*\s*TC)$/i.test(c) &&
+      /^(?:\d+(?:[-\/]\d+)?[A-Z]{0,2}T|C\d+T|\d+AC|(?:UP|DN)[_-]?BPAC[-\s]?\d+|(?:DM|UM|CL|UL|ML|LL|RM|LM|CM)[AB]?T|TC[-\s]?\d+[A-Z0-9]*|\d+[A-Z]*\s*TC)$/i.test(c) &&
       !/^NOMINAL/i.test(c)
     ) {
       const cleanTc = c.toUpperCase().replace(/\s+/g, '');
@@ -1415,7 +1532,7 @@ export function extractComponentsFromCad(
 
   const runningSignals = signals.filter((s) => !s.isShunt);
   const nonCallingSignals = runningSignals.filter((s) => !s.isCallingOn);
-  const yBandTol = Math.max(cad.bounds.height * 0.11, 22);
+  // Route topology resolution using geometric band tolerance (yBandTol)
 
   // Determine station yard X extent from main-station Home/Starter signals (non-dotted Station Section signals)
   const yardSignals = runningSignals.filter((s) => !s.isDotted && s.sectionType === 'Station Section');
@@ -1735,10 +1852,10 @@ export function extractComponentsFromCad(
       // Look for dedicated berthing track circuit for the line (e.g. DMT, UMT, CLT, ULT)
       const berthingKeyword = entry.line.includes('DOWN') ? 'DMT'
         : entry.line.includes('UP') && entry.line.includes('LOOP') ? 'ULT'
-        : entry.line.includes('UP') ? 'UMT'
-        : entry.line.includes('COMMON') ? 'CLT'
-        : entry.line.includes('LOOP') ? 'CLT'
-        : '';
+          : entry.line.includes('UP') ? 'UMT'
+            : entry.line.includes('COMMON') ? 'CLT'
+              : entry.line.includes('LOOP') ? 'CLT'
+                : '';
 
       const matchedBerthingTc = berthingKeyword
         ? trackCircuits.find((tc) => tc.label.toUpperCase() === berthingKeyword)

@@ -28,6 +28,11 @@
       "filter": ["**/*"]
     },
     {
+      "from": "node_modules/@mlightcad/libredwg-web/wasm",
+      "to": "libredwg-wasm",
+      "filter": ["**/*"]
+    },
+    {
       "from": "server",
       "to": "server",
       "filter": ["**/*"]
@@ -40,7 +45,7 @@
     {
       "from": "data",
       "to": "data",
-      "filter": ["**/*"]
+      "filter": ["**/*", "!projects/*.json", "!uploads/*.pdf"]
     }
   ],
   "win": {

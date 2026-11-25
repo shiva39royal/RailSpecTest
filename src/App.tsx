@@ -317,36 +317,6 @@ export default function App() {
     }));
   }, []);
 
-  const handleLoadSampleStation = useCallback(async () => {
-    try {
-      showToast('Loading sample Chitgidda (CTF) Station layout...', 'info');
-      const res = await fetchJsonWithRetry<{ drawing: UploadedDrawing }>(
-        '/api/drawings/load-spec-pdf',
-        () => ({ method: 'POST' }),
-        { fallbackError: 'Failed to load sample station PDF', maxRetries: 2 }
-      );
-      if (res && res.drawing) {
-        setProject((prev) => {
-          const exists = prev.drawings.some((d) => d.id === res.drawing.id);
-          const nextDrawings = exists
-            ? prev.drawings.map((d) => (d.id === res.drawing.id ? res.drawing : d))
-            : [res.drawing, ...prev.drawings];
-          return {
-            ...prev,
-            drawings: nextDrawings,
-            activeDrawingId: res.drawing.id,
-            activePageNumber: 1,
-            name: 'Chitgidda Station (CTF) - KAVACH Sample',
-          };
-        });
-        showToast('Sample Chitgidda Station loaded successfully!', 'success');
-        setActiveNav('viewer');
-      }
-    } catch (err: any) {
-      showToast(err.message || 'Error loading sample station', 'error');
-    }
-  }, [showToast]);
-
   // Dynamic Extraction Flow (ONLY triggered on explicit Start Extraction click)
   const handleStartExtraction = useCallback(async () => {
     if (!activeDrawing) {
@@ -1222,6 +1192,7 @@ export default function App() {
           <div className={activeNav === 'viewer' ? 'block' : 'hidden'}>
             <DrawingViewer
               drawing={activeDrawing}
+              metadata={project.metadata}
               pageNumber={project.activePageNumber}
               onPageNumberChange={(page) =>
                 setProject((prev) => ({ ...prev, activePageNumber: page }))

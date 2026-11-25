@@ -7,7 +7,12 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { parseDwgBuffer, parseDxfBuffer } from './server/cadParser';
 import { runDynamicExtraction } from './server/extractionService';
-import { getPdfPageContentBounds, type PdfContentBounds } from './server/pdfProcessor';
+import {
+  getPdfPageContentBounds,
+  getPdfPageMetadata,
+  type PdfContentBounds,
+  type PdfMetadataPreview,
+} from './server/pdfProcessor';
 import {
   DEFAULT_EXTRACTION_SETTINGS,
   KAVACH_SPEC_TABLES,
@@ -462,6 +467,9 @@ async function startServer() {
     }
   });
 
+  const pdfBoundsCache = new Map<string, PdfContentBounds>();
+  const pdfMetadataCache = new Map<string, PdfMetadataPreview>();
+
   // 5b. Compute & return exact tight drawing-border bounding box for any PDF page
   app.get('/api/drawings/:id/pdf-bounds', async (req, res) => {
     const entry = resolveDrawingEntry(req.params.id);
@@ -478,6 +486,26 @@ async function startServer() {
       const bounds = await getPdfPageContentBounds(entry.filePath, pageNum);
       pdfBoundsCache.set(cacheKey, bounds);
       return res.json({ bounds });
+    } catch (err) {
+      return res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  app.get('/api/drawings/:id/metadata', async (req, res) => {
+    const entry = resolveDrawingEntry(req.params.id);
+    if (!entry || !fs.existsSync(entry.filePath) || entry.drawing.format !== 'PDF') {
+      return res.status(404).json({ error: 'PDF drawing not found.' });
+    }
+    const pageNum = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
+    const cacheKey = `${entry.drawing.id}:${pageNum}`;
+    const cached = pdfMetadataCache.get(cacheKey);
+    if (cached) {
+      return res.json({ metadata: cached });
+    }
+    try {
+      const metadata = await getPdfPageMetadata(entry.filePath, pageNum);
+      pdfMetadataCache.set(cacheKey, metadata);
+      return res.json({ metadata });
     } catch (err) {
       return res.status(500).json({ error: (err as Error).message });
     }

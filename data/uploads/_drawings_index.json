@@ -94,5 +94,411 @@
         }
       }
     }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_60995b5b-3b9.pdf",
+    "drawing": {
+      "id": "drw_60995b5b-3b9",
+      "fileName": "Table Of Contro Chitgidda.pdf",
+      "format": "PDF",
+      "sizeBytes": 135154,
+      "uploadedAt": "2026-11-25T10:34:10.855Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated PDF signature (PDF 1.6).",
+        "Detected 12 PDF sheets. Tight drawing border: 1024×804 pt (18% blank outer margin trimmed automatically)."
+      ],
+      "pageCount": 12,
+      "fileUrl": "/api/drawings/drw_60995b5b-3b9/file",
+      "pdfMetadata": {
+        "pageCount": 12,
+        "width": 1190.55,
+        "height": 841.89,
+        "contentBounds": {
+          "pageNumber": 1,
+          "pageWidth": 1190.55,
+          "pageHeight": 841.89,
+          "llx": 42.33,
+          "lly": 0,
+          "urx": 1066.57,
+          "ury": 804.01,
+          "cropX": 42.33,
+          "cropY": 37.879999999999995,
+          "cropWidth": 1024.24,
+          "cropHeight": 804.01,
+          "trimmedRatio": 0.17840045037187735
+        }
+      }
+    }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_3741130b-8ae.pdf",
+    "drawing": {
+      "id": "drw_3741130b-8ae",
+      "fileName": "Chitgidda_Layout.pdf",
+      "format": "PDF",
+      "sizeBytes": 639625,
+      "uploadedAt": "2026-11-25T10:34:58.310Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated PDF signature (PDF 1.6).",
+        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+      ],
+      "pageCount": 1,
+      "fileUrl": "/api/drawings/drw_3741130b-8ae/file",
+      "pdfMetadata": {
+        "pageCount": 1,
+        "width": 842,
+        "height": 4082,
+        "contentBounds": {
+          "pageNumber": 1,
+          "pageWidth": 842,
+          "pageHeight": 4082,
+          "llx": 0.8,
+          "lly": 1951.26,
+          "urx": 842,
+          "ury": 2130,
+          "cropX": 0.8,
+          "cropY": 1952,
+          "cropWidth": 841.2,
+          "cropHeight": 178.74,
+          "trimmedRatio": 0.9562542440539021
+        }
+      }
+    }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_4f643c54-3a4.pdf",
+    "drawing": {
+      "id": "drw_4f643c54-3a4",
+      "fileName": "Chitgidda_Layout.pdf",
+      "format": "PDF",
+      "sizeBytes": 639625,
+      "uploadedAt": "2026-11-25T10:49:09.929Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated PDF signature (PDF 1.6).",
+        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+      ],
+      "pageCount": 1,
+      "fileUrl": "/api/drawings/drw_4f643c54-3a4/file",
+      "pdfMetadata": {
+        "pageCount": 1,
+        "width": 842,
+        "height": 4082,
+        "contentBounds": {
+          "pageNumber": 1,
+          "pageWidth": 842,
+          "pageHeight": 4082,
+          "llx": 0.8,
+          "lly": 1951.26,
+          "urx": 842,
+          "ury": 2130,
+          "cropX": 0.8,
+          "cropY": 1952,
+          "cropWidth": 841.2,
+          "cropHeight": 178.74,
+          "trimmedRatio": 0.9562542440539021
+        }
+      }
+    }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_3832944c-86b.pdf",
+    "drawing": {
+      "id": "drw_3832944c-86b",
+      "fileName": "Chitgidda_Layout.pdf",
+      "format": "PDF",
+      "sizeBytes": 639625,
+      "uploadedAt": "2026-11-25T10:59:58.800Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated PDF signature (PDF 1.6).",
+        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+      ],
+      "pageCount": 1,
+      "fileUrl": "/api/drawings/drw_3832944c-86b/file",
+      "pdfMetadata": {
+        "pageCount": 1,
+        "width": 842,
+        "height": 4082,
+        "contentBounds": {
+          "pageNumber": 1,
+          "pageWidth": 842,
+          "pageHeight": 4082,
+          "llx": 0.8,
+          "lly": 1951.26,
+          "urx": 842,
+          "ury": 2130,
+          "cropX": 0.8,
+          "cropY": 1952,
+          "cropWidth": 841.2,
+          "cropHeight": 178.74,
+          "trimmedRatio": 0.9562542440539021
+        }
+      }
+    }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_9ecf053b-18f.pdf",
+    "drawing": {
+      "id": "drw_9ecf053b-18f",
+      "fileName": "Chitgidda_Layout.pdf",
+      "format": "PDF",
+      "sizeBytes": 639625,
+      "uploadedAt": "2026-11-25T11:01:26.580Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated PDF signature (PDF 1.6).",
+        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+      ],
+      "pageCount": 1,
+      "fileUrl": "/api/drawings/drw_9ecf053b-18f/file",
+      "pdfMetadata": {
+        "pageCount": 1,
+        "width": 842,
+        "height": 4082,
+        "contentBounds": {
+          "pageNumber": 1,
+          "pageWidth": 842,
+          "pageHeight": 4082,
+          "llx": 0.8,
+          "lly": 1951.26,
+          "urx": 842,
+          "ury": 2130,
+          "cropX": 0.8,
+          "cropY": 1952,
+          "cropWidth": 841.2,
+          "cropHeight": 178.74,
+          "trimmedRatio": 0.9562542440539021
+        }
+      }
+    }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_9e7d1489-8e7.pdf",
+    "drawing": {
+      "id": "drw_9e7d1489-8e7",
+      "fileName": "Chitgidda_Layout.pdf",
+      "format": "PDF",
+      "sizeBytes": 639625,
+      "uploadedAt": "2026-11-25T11:20:27.192Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated PDF signature (PDF 1.6).",
+        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+      ],
+      "pageCount": 1,
+      "fileUrl": "/api/drawings/drw_9e7d1489-8e7/file",
+      "pdfMetadata": {
+        "pageCount": 1,
+        "width": 842,
+        "height": 4082,
+        "contentBounds": {
+          "pageNumber": 1,
+          "pageWidth": 842,
+          "pageHeight": 4082,
+          "llx": 0.8,
+          "lly": 1951.26,
+          "urx": 842,
+          "ury": 2130,
+          "cropX": 0.8,
+          "cropY": 1952,
+          "cropWidth": 841.2,
+          "cropHeight": 178.74,
+          "trimmedRatio": 0.9562542440539021
+        }
+      }
+    }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_3dd9a142-06f.pdf",
+    "drawing": {
+      "id": "drw_3dd9a142-06f",
+      "fileName": "Chitgidda_Layout.pdf",
+      "format": "PDF",
+      "sizeBytes": 639625,
+      "uploadedAt": "2026-11-25T11:22:30.701Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated PDF signature (PDF 1.6).",
+        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+      ],
+      "pageCount": 1,
+      "fileUrl": "/api/drawings/drw_3dd9a142-06f/file",
+      "pdfMetadata": {
+        "pageCount": 1,
+        "width": 842,
+        "height": 4082,
+        "contentBounds": {
+          "pageNumber": 1,
+          "pageWidth": 842,
+          "pageHeight": 4082,
+          "llx": 0.8,
+          "lly": 1951.26,
+          "urx": 842,
+          "ury": 2130,
+          "cropX": 0.8,
+          "cropY": 1952,
+          "cropWidth": 841.2,
+          "cropHeight": 178.74,
+          "trimmedRatio": 0.9562542440539021
+        }
+      }
+    }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_58a7fda6-75e.pdf",
+    "drawing": {
+      "id": "drw_58a7fda6-75e",
+      "fileName": "Chitgidda_Layout.pdf",
+      "format": "PDF",
+      "sizeBytes": 639625,
+      "uploadedAt": "2026-11-25T11:22:38.588Z",
+      "role": "other",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated PDF signature (PDF 1.6).",
+        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+      ],
+      "pageCount": 1,
+      "fileUrl": "/api/drawings/drw_58a7fda6-75e/file",
+      "pdfMetadata": {
+        "pageCount": 1,
+        "width": 842,
+        "height": 4082,
+        "contentBounds": {
+          "pageNumber": 1,
+          "pageWidth": 842,
+          "pageHeight": 4082,
+          "llx": 0.8,
+          "lly": 1951.26,
+          "urx": 842,
+          "ury": 2130,
+          "cropX": 0.8,
+          "cropY": 1952,
+          "cropWidth": 841.2,
+          "cropHeight": 178.74,
+          "trimmedRatio": 0.9562542440539021
+        }
+      }
+    }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_291884f9-6e6.pdf",
+    "drawing": {
+      "id": "drw_291884f9-6e6",
+      "fileName": "Chitgidda_Layout.pdf",
+      "format": "PDF",
+      "sizeBytes": 639625,
+      "uploadedAt": "2026-11-25T11:40:30.485Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated PDF signature (PDF 1.6).",
+        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+      ],
+      "pageCount": 1,
+      "fileUrl": "/api/drawings/drw_291884f9-6e6/file",
+      "pdfMetadata": {
+        "pageCount": 1,
+        "width": 842,
+        "height": 4082,
+        "contentBounds": {
+          "pageNumber": 1,
+          "pageWidth": 842,
+          "pageHeight": 4082,
+          "llx": 0.8,
+          "lly": 1951.26,
+          "urx": 842,
+          "ury": 2130,
+          "cropX": 0.8,
+          "cropY": 1952,
+          "cropWidth": 841.2,
+          "cropHeight": 178.74,
+          "trimmedRatio": 0.9562542440539021
+        }
+      }
+    }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_070b8b72-3f5.pdf",
+    "drawing": {
+      "id": "drw_070b8b72-3f5",
+      "fileName": "Chitgidda_Layout.pdf",
+      "format": "PDF",
+      "sizeBytes": 639625,
+      "uploadedAt": "2026-11-25T11:56:44.390Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated PDF signature (PDF 1.6).",
+        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+      ],
+      "pageCount": 1,
+      "fileUrl": "/api/drawings/drw_070b8b72-3f5/file",
+      "pdfMetadata": {
+        "pageCount": 1,
+        "width": 842,
+        "height": 4082,
+        "contentBounds": {
+          "pageNumber": 1,
+          "pageWidth": 842,
+          "pageHeight": 4082,
+          "llx": 0.8,
+          "lly": 1951.26,
+          "urx": 842,
+          "ury": 2130,
+          "cropX": 0.8,
+          "cropY": 1952,
+          "cropWidth": 841.2,
+          "cropHeight": 178.74,
+          "trimmedRatio": 0.9562542440539021
+        }
+      }
+    }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_9877c505-812.dwg",
+    "drawing": {
+      "id": "drw_9877c505-812",
+      "fileName": "0_RFIDtag_TIN_Layout_Model_Stations_AESPL_C.dwg",
+      "format": "DWG",
+      "sizeBytes": 3580095,
+      "uploadedAt": "2026-11-25T12:05:40.764Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated binary AutoCAD DWG header (AC1015).",
+        "Decoded DWG (AutoCAD 2000–2002 (AC1015)) with 1,007 entities, 15 layers, and 311 text annotations."
+      ],
+      "pageCount": 1,
+      "fileUrl": "/api/drawings/drw_9877c505-812/file"
+    }
+  },
+  {
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_8c685ac6-fcc.dwg",
+    "drawing": {
+      "id": "drw_8c685ac6-fcc",
+      "fileName": "0_RFIDtag_TIN_Layout_Model_Stations_AESPL_C.dwg",
+      "format": "DWG",
+      "sizeBytes": 3580095,
+      "uploadedAt": "2026-11-25T12:52:30.012Z",
+      "role": "primary_layout",
+      "validationStatus": "valid",
+      "validationNotes": [
+        "Validated binary AutoCAD DWG header (AC1015).",
+        "Decoded DWG (AutoCAD 2000–2002 (AC1015)) with 1,007 entities, 15 layers, and 311 text annotations."
+      ],
+      "pageCount": 1,
+      "fileUrl": "/api/drawings/drw_8c685ac6-fcc/file"
+    }
   }
 ]
