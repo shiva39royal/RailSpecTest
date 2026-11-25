@@ -8,17 +8,20 @@ if os.path.exists(_user_site) and _user_site not in sys.path:
     sys.path.insert(0, _user_site)
 
 try:
-    import pymupdf
+    import pymupdf  # type: ignore[import-untyped]
 except ImportError:
     try:
-        import fitz as pymupdf
+        import fitz  # type: ignore[import-untyped]
+        pymupdf = fitz
     except ImportError as e:
         raise ImportError(f"PyMuPDF is not installed in the active environment ({sys.executable}). Run: pip install pymupdf") from e
 
-import pytesseract
+import pytesseract  # type: ignore[import-untyped]
 from PIL import Image
 
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+_tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+if os.path.exists(_tesseract_path):
+    pytesseract.pytesseract.tesseract_cmd = _tesseract_path
 
 def clean_ocr_token(raw):
     if not raw:
@@ -98,6 +101,40 @@ def derive_ma_from_exit(exit_asp):
         return '2'
     return '1'
 
+def normalize_toc_points(raw_val):
+    if not raw_val or str(raw_val).strip() in ['-', '', 'Nil', 'NIL', 'None', 'NONE']:
+        return '-'
+    cleaned_str = str(raw_val).strip()
+    cleaned_str = re.sub(r'\b(?:POINT|PT|P)\s+(\d+[A-Za-z0-9]*)', r'P-\1', cleaned_str, flags=re.IGNORECASE)
+    cleaned_str = re.sub(r'(\d+[A-Za-z0-9]*)\s+(?:POINT|PT)\b', r'P-\1', cleaned_str, flags=re.IGNORECASE)
+
+    tokens = re.split(r'[,;\s/]+', cleaned_str)
+    normalized = []
+    seen = set()
+    for tok in tokens:
+        tok_clean = tok.strip().upper()
+        if not tok_clean or tok_clean == '-' or tok_clean in ['NIL', 'NONE', 'POINT', 'PT']:
+            continue
+        m_p = re.match(r'^P[-_]?([A-Z0-9]+)$', tok_clean)
+        if m_p:
+            p_label = f"P-{m_p.group(1)}"
+        elif re.match(r'^(?:PT|POINT)[-_]?([A-Z0-9]+)$', tok_clean):
+            m_pt = re.match(r'^(?:PT|POINT)[-_]?([A-Z0-9]+)$', tok_clean)
+            p_label = f"P-{m_pt.group(1)}"
+        elif re.match(r'^[I|]?N[-_]?([A-Z0-9]+)$', tok_clean):
+            m_n = re.match(r'^[I|]?N[-_]?([A-Z0-9]+)$', tok_clean)
+            p_label = f"P-{m_n.group(1)}"
+        elif re.match(r'^([0-9]+[A-Z0-9]*)$', tok_clean):
+            p_label = f"P-{tok_clean}"
+        else:
+            p_label = f"P-{tok_clean}" if not tok_clean.startswith('P-') else tok_clean
+            
+        if p_label not in seen:
+            seen.add(p_label)
+            normalized.append(p_label)
+    
+    return ", ".join(normalized) if normalized else '-'
+
 def extract_toc_tables(doc):
     """Extract structured Table 1, Table 2, Table 4, Table 6, Table 7 from TOC document."""
     tables = {
@@ -158,18 +195,18 @@ def extract_toc_tables(doc):
                         # Check if this row starts a new signal route
                         if cleaned[0] and (re.match(r'^(S|SH|C|GS)?\d{1,3}[A-Z]*$', cleaned[0]) or len(cleaned[0]) <= 8):
                             current_entry = cleaned[0]
-                            if len(cleaned) > 1 and cleaned[1]: current_exit = cleaned[1]
-                            if len(cleaned) > 2 and cleaned[2]: current_line = cleaned[2]
-                            if len(cleaned) > 4 and cleaned[4]: current_sigtype = cleaned[4]
-                            if len(cleaned) > 8 and cleaned[8]: current_pts_n = cleaned[8]
-                            if len(cleaned) > 9 and cleaned[9]: current_pts_r = cleaned[9]
-                            if len(cleaned) > 10 and cleaned[10]: current_tc = cleaned[10]
-                            if len(cleaned) > 11 and cleaned[11]: current_tin = cleaned[11]
-                            if len(cleaned) > 12 and cleaned[12]: current_foot_tag = cleaned[12]
-                            if len(cleaned) > 13 and cleaned[13]: current_en_route = cleaned[13]
-                            if len(cleaned) > 14 and cleaned[14]: current_dist = cleaned[14]
-                            if len(cleaned) > 16 and cleaned[16]: current_sr = cleaned[16]
-                            if len(cleaned) > 17 and cleaned[17]: current_os = cleaned[17]
+                            current_exit = cleaned[1] if len(cleaned) > 1 and cleaned[1] else ""
+                            current_line = cleaned[2] if len(cleaned) > 2 and cleaned[2] else ""
+                            current_sigtype = cleaned[4] if len(cleaned) > 4 and cleaned[4] else ""
+                            current_pts_n = normalize_toc_points(cleaned[8]) if len(cleaned) > 8 and cleaned[8] else ""
+                            current_pts_r = normalize_toc_points(cleaned[9]) if len(cleaned) > 9 and cleaned[9] else ""
+                            current_tc = cleaned[10] if len(cleaned) > 10 and cleaned[10] else ""
+                            current_tin = cleaned[11] if len(cleaned) > 11 and cleaned[11] else ""
+                            current_foot_tag = cleaned[12] if len(cleaned) > 12 and cleaned[12] else ""
+                            current_en_route = cleaned[13] if len(cleaned) > 13 and cleaned[13] else ""
+                            current_dist = cleaned[14] if len(cleaned) > 14 and cleaned[14] else ""
+                            current_sr = cleaned[16] if len(cleaned) > 16 and cleaned[16] else ""
+                            current_os = cleaned[17] if len(cleaned) > 17 and cleaned[17] else ""
                         else:
                             # Update route properties if present on aspect row
                             if len(cleaned) > 1 and cleaned[1]: current_exit = cleaned[1]
@@ -189,6 +226,30 @@ def extract_toc_tables(doc):
                         ma = cleaned[15] if len(cleaned) > 15 and cleaned[15] else "1"
 
                         section_type = "Absolute Block" if ("DIST" in current_sigtype.upper() or "ADV" in current_sigtype.upper()) else "Station Section"
+                        is_calling_on = bool(re.search(r'calling', current_sigtype, re.IGNORECASE) or current_entry.upper().endswith('A'))
+                        is_block = section_type == "Absolute Block"
+
+                        tc_up_val = current_tc.replace('\n', ' ').strip() if current_tc else "-"
+                        if is_calling_on and tc_up_val != "-" and "OCCUPIED" not in tc_up_val.upper():
+                            tc_up_val = f"{tc_up_val} (Occupied)"
+
+                        tins_free_val = "-"
+                        if not is_calling_on and not is_block and current_tin:
+                            raw_tin_tokens = re.split(r'[,;\s]+', current_tin.replace('\n', ' ').strip())
+                            norm_tins = []
+                            seen_tin = set()
+                            for tok in raw_tin_tokens:
+                                tok_clean = tok.strip().upper()
+                                if not tok_clean or tok_clean == '-':
+                                    continue
+                                if re.match(r'^N\d+', tok_clean):
+                                    tok_clean = f"N-{tok_clean[1:]}"
+                                elif re.match(r'^TIN\d+', tok_clean):
+                                    tok_clean = f"TIN-{tok_clean[3:]}"
+                                if tok_clean not in seen_tin:
+                                    seen_tin.add(tok_clean)
+                                    norm_tins.append(tok_clean)
+                            tins_free_val = ", ".join(norm_tins) if norm_tins else "-"
                         
                         exit_parts = [p.strip() for p in aspect_exit.split('/') if p.strip()] if '/' in aspect_exit else [aspect_exit]
                         for exp_exit in exit_parts:
@@ -204,10 +265,10 @@ def extract_toc_tables(doc):
                                     "signalType": current_sigtype,
                                     "aspectEntry": aspect_entry,
                                     "aspectExit": exp_exit,
-                                    "pointsNormal": current_pts_n if current_pts_n else "-",
-                                    "pointsReverse": current_pts_r if current_pts_r else "-",
-                                    "trackCircuitUp": current_tc,
-                                    "tinsFree": current_tin if current_tin else "-",
+                                    "pointsNormal": normalize_toc_points(current_pts_n),
+                                    "pointsReverse": normalize_toc_points(current_pts_r),
+                                    "trackCircuitUp": tc_up_val,
+                                    "tinsFree": tins_free_val,
                                     "tinsOverlap": "-",
                                     "entryFootTag": foot_tag,
                                     "enRouteTags": en_route,
@@ -333,8 +394,8 @@ def extract_toc_tables(doc):
                                     "aspectEntry": cleaned[3] if len(cleaned) > 3 else "Red/Blank",
                                     "aspectExit": cleaned[4] if len(cleaned) > 4 else "Red",
                                     "requiredRouteCommand": cleaned[5] if len(cleaned) > 5 else "",
-                                    "pointsNormal": cleaned[6] if (len(cleaned) > 6 and cleaned[6]) else "-",
-                                    "pointsReverse": cleaned[7] if (len(cleaned) > 7 and cleaned[7]) else "-",
+                                    "pointsNormal": normalize_toc_points(cleaned[6]) if (len(cleaned) > 6 and cleaned[6]) else "-",
+                                    "pointsReverse": normalize_toc_points(cleaned[7]) if (len(cleaned) > 7 and cleaned[7]) else "-",
                                     "trackCircuitUp": cleaned[8] if len(cleaned) > 8 else "",
                                     "tinsFree": cleaned[9] if (len(cleaned) > 9 and cleaned[9]) else "-",
                                     "entryFootTag": cleaned[10] if len(cleaned) > 10 else "",

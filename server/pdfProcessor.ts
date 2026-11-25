@@ -165,6 +165,19 @@ function resolvePythonBinary(): string {
   return 'python';
 }
 
+function resolveWorkerScript(): string {
+  const candidates = [
+    path.join(__dirname, 'pdfOcrWorker.py'),
+    path.join(__dirname, 'server', 'pdfOcrWorker.py'),
+    path.join(process.cwd(), 'server', 'pdfOcrWorker.py'),
+    path.join(process.cwd(), 'pdfOcrWorker.py'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return path.join(__dirname, 'pdfOcrWorker.py');
+}
+
 /**
  * Computes the exact tight vector/raster ink bounding box (drawing border extent) of a PDF page
  * using PyMuPDF (100% offline, native Python vector inspection, zero Ghostscript dependency).
@@ -179,7 +192,7 @@ export async function getPdfPageContentBounds(
   // 1. High-fidelity PyMuPDF ink bounds calculation (fast, accurate, no Ghostscript dependency)
   try {
     const pythonBin = resolvePythonBinary();
-    const workerScript = path.join(__dirname, 'pdfOcrWorker.py');
+    const workerScript = resolveWorkerScript();
     const { stdout } = await execFileAsync(
       pythonBin,
       [workerScript, pdfPath, String(safePage), '--bounds'],
@@ -258,7 +271,7 @@ export async function extractPdfPageAsCadDocument(
     `ocr_out_${Date.now()}_${Math.random().toString(36).slice(2)}.json`
   );
   try {
-    const workerScript = path.join(__dirname, 'pdfOcrWorker.py');
+    const workerScript = resolveWorkerScript();
     const pythonBin = resolvePythonBinary();
     await execFileAsync(pythonBin, [workerScript, pdfPath, String(safePage), tempOut], {
       timeout: 120000,

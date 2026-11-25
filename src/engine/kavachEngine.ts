@@ -114,9 +114,93 @@ export function getSignalTypeChoicesForRow(entrySignal: string, line?: string): 
 }
 
 /**
+ * Normalizes any turnout/point identifier to standard "P-<alphanumeric>" format:
+ * - Preserves complete numeric and alphanumeric identifiers (e.g. 11 -> P-11, 17KL -> P-17KL, 20A -> P-20A, 105AB -> P-105AB)
+ * - Standardizes prefixes like PT-, PT, POINT, N- to P-
+ * - Zero hardcoding: operates purely on string pattern matching
+ */
+export function normalizePointLabel(raw: string): string {
+  const trimmed = String(raw || '').trim().toUpperCase();
+  if (!trimmed || trimmed === '-' || trimmed === 'NIL' || trimmed === 'NONE') return '-';
+
+  // Already P-<alphanumeric>
+  if (/^P-[A-Z0-9]+$/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Starts with P followed by hyphens/spaces and alphanumerics (e.g. P--11, P 17KL)
+  const pMatch = trimmed.match(/^P[-_\s]+([A-Z0-9]+)$/i);
+  if (pMatch) {
+    return `P-${pMatch[1]}`;
+  }
+
+  // Starts with PT or POINT (e.g. PT-11, POINT 17KL, PT11)
+  const ptMatch = trimmed.match(/^(?:PT|POINT)[-_\s]*([A-Z0-9]+)$/i);
+  if (ptMatch) {
+    return `P-${ptMatch[1]}`;
+  }
+
+  // Suffixed with PT or POINT (e.g. "11 PT", "17KL-PT")
+  const ptSuffixMatch = trimmed.match(/^([A-Z0-9]+)[-_\s]*(?:PT|POINT)$/i);
+  if (ptSuffixMatch) {
+    return `P-${ptSuffixMatch[1]}`;
+  }
+
+  // P followed directly by alphanumerics (e.g. P11, P17KL, P20A)
+  const directPMatch = trimmed.match(/^P([0-9]+[A-Z0-9]*)$/i);
+  if (directPMatch) {
+    return `P-${directPMatch[1]}`;
+  }
+
+  // Pure numeric or alphanumeric starting with digits (e.g. 11, 13, 17KL, 20A, 105AB)
+  const numAlphaMatch = trimmed.match(/^([0-9]+[A-Z0-9]*)$/i);
+  if (numAlphaMatch) {
+    return `P-${numAlphaMatch[1]}`;
+  }
+
+  // Starts with N or IN (e.g. N-45, IN-46, N51)
+  const nMatch = trimmed.match(/^[I|]?N[-_\s]*([A-Z0-9]+)$/i);
+  if (nMatch) {
+    return `P-${nMatch[1]}`;
+  }
+
+  // Generic fallback: ensure P- prefix
+  const cleaned = trimmed.replace(/^[^A-Z0-9]+|[^A-Z0-9]+$/gi, '');
+  return cleaned ? `P-${cleaned}` : '-';
+}
+
+/**
+ * Splits and normalizes a comma-separated or space-separated list of points into "P-**, P-**".
+ */
+export function normalizePointListString(raw: string | undefined): string {
+  if (!raw || raw.trim() === '-' || raw.trim() === '' || /^nil$/i.test(raw.trim())) return '-';
+  let cleanedStr = raw.trim();
+  cleanedStr = cleanedStr.replace(/\b(?:POINT|PT|P)\s+(\d+[A-Za-z0-9]*)/gi, 'P-$1');
+  cleanedStr = cleanedStr.replace(/(\d+[A-Za-z0-9]*)\s+(?:POINT|PT)\b/gi, 'P-$1');
+
+  const tokens = cleanedStr
+    .split(/[,;\s/]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+
+  for (const tok of tokens) {
+    if (tok === '-' || /^nil$/i.test(tok) || /^(?:POINT|PT)$/i.test(tok)) continue;
+    const norm = normalizePointLabel(tok);
+    if (norm !== '-' && !seen.has(norm)) {
+      seen.add(norm);
+      normalized.push(norm);
+    }
+  }
+
+  return normalized.length > 0 ? normalized.join(', ') : '-';
+}
+
+/**
  * Enforces strict component prefix rules:
  * - Starts with "R-" -> rfid_tag (RFID Tags)
- * - Starts with "P-" -> point (Pointers / Points)
+ * - Starts with "P-" -> point (Pointers / Points normalized to P-**)
  */
 export function normalizeComponentByPrefix(comp: ExtractedComponent): ExtractedComponent {
   const lbl = String(comp.label || '').trim();
@@ -128,9 +212,17 @@ export function normalizeComponentByPrefix(comp: ExtractedComponent): ExtractedC
       subType: comp.subType && !/infrastructure/i.test(comp.subType) ? comp.subType : 'RFID Tag',
     };
   }
-  if (/^(?:P-|PT|POINT|[I|]?N-?\d+)/i.test(upper)) {
+  if (/^(?:TIN[-\s]?\d+|N-\d+)/i.test(upper)) {
     return {
       ...comp,
+      category: 'tin',
+      subType: comp.subType && !/infrastructure/i.test(comp.subType) ? comp.subType : 'Track Identification Number',
+    };
+  }
+  if (/^(?:P-|PT|POINT|IN-?\d+)/i.test(upper)) {
+    return {
+      ...comp,
+      label: normalizePointLabel(comp.label),
       category: 'point',
       subType: comp.subType && !/infrastructure/i.test(comp.subType) ? comp.subType : 'Pointer (Point)',
     };
@@ -142,7 +234,7 @@ export function normalizeComponentByPrefix(comp: ExtractedComponent): ExtractedC
       subType: comp.subType && !/infrastructure/i.test(comp.subType) ? comp.subType : 'Signal',
     };
   }
-  if (/^(?:\d+[A-Z]?T|\d+AC|DP[-\s]?\d+)/i.test(upper)) {
+  if (/^(?:\d+[A-Z]{0,2}T|C\d+T|\d+AC|(?:UP|DN)[_-]?BPAC[-\s]?\d+|DMT|UMT|CLT|ULT|MLT|LLT|RMT|LMT|CMT|TC[-\s]?\d+|\d+[A-Z]*\s*TC|DP[-\s]?\d+)/i.test(upper)) {
     return {
       ...comp,
       category: 'track_circuit',
@@ -514,6 +606,8 @@ export function recalculateDependentTables(
           ...row.cells,
           aspectEntry: entryPart,
           aspectExit: exitPart,
+          pointsNormal: normalizePointListString(row.cells.pointsNormal),
+          pointsReverse: normalizePointListString(row.cells.pointsReverse),
           movementAuthority: nextMa,
         };
         const nextMeta = { ...row.cellMeta };
@@ -543,6 +637,8 @@ export function recalculateDependentTables(
       const nextMa = deriveMovementAuthorityFromExitAspect(rawExit);
       const nextCells: Record<string, string> = {
         ...row.cells,
+        pointsNormal: normalizePointListString(row.cells.pointsNormal),
+        pointsReverse: normalizePointListString(row.cells.pointsReverse),
         movementAuthority:
           row.cellMeta?.movementAuthority?.source === 'manual'
             ? row.cells.movementAuthority || nextMa
@@ -1025,7 +1121,7 @@ export function validateKavachDataset(
       }
     }
 
-    // Rule 3d: Calling-On Signal must NOT prove TINs (Cl. I.2.11.12)
+    // Rule 3d: Calling-On Signal must NOT prove TINs (Cl. I.2.11.12 & Cl. I.2.11.13)
     const sigType = (row.cells.signalType || '').toLowerCase();
     if (sigType.includes('calling')) {
       const hasTins = tinsFree && tinsFree !== '-' && tinsFree !== 'NIL';
@@ -1039,6 +1135,70 @@ export function validateKavachDataset(
           ruleName: 'Calling-On TIN Proving Prohibited',
           message: `Calling-On signal ${entry} -> ${exit}: TINs shall NOT be proved for Calling-On signals.`,
           suggestedValue: '-',
+        });
+      }
+      const overlapTinsVal = (row.cells.tinsOverlap || '').toUpperCase();
+      if (overlapTinsVal && overlapTinsVal !== '-' && overlapTinsVal !== 'NIL') {
+        pushIssue({
+          severity: 'error',
+          tableId: 'table1_control',
+          rowId: row.rowId,
+          columnKey: 'tinsOverlap',
+          clauseRef: 'Cl. I.2.11.13',
+          ruleName: 'Calling-On Overlap TIN Prohibited',
+          message: `Calling-On signal ${entry} -> ${exit}: Overlap TINs shall NOT be proved for Calling-On signals.`,
+          suggestedValue: '-',
+        });
+      }
+      const tcUpVal = (row.cells.trackCircuitUp || '').toLowerCase();
+      if (tcUpVal && tcUpVal !== '-' && !tcUpVal.includes('occupied')) {
+        pushIssue({
+          severity: 'warning',
+          tableId: 'table1_control',
+          rowId: row.rowId,
+          columnKey: 'trackCircuitUp',
+          clauseRef: 'Cl. I.2.11.10',
+          ruleName: 'Calling-On Approach Track Occupied Rule',
+          message: `Calling-On signal ${entry} -> ${exit}: Approach track circuit must be proved in "Occupied" condition.`,
+          suggestedValue: `${row.cells.trackCircuitUp} (Occupied)`,
+        });
+      }
+    }
+
+    // Rule 3e: Requires Points in Route validation (Normal & Reverse) (Cl. I.2.11.9)
+    const ptsNormRaw = (row.cells.pointsNormal || '').trim();
+    const ptsRevRaw = (row.cells.pointsReverse || '').trim();
+    const normList = ptsNormRaw && ptsNormRaw !== '-' ? ptsNormRaw.split(',').map((p) => p.trim()).filter(Boolean) : [];
+    const revList = ptsRevRaw && ptsRevRaw !== '-' ? ptsRevRaw.split(',').map((p) => p.trim()).filter(Boolean) : [];
+
+    // Verify format P-[A-Za-z0-9]+
+    for (const p of [...normList, ...revList]) {
+      if (!/^P-[A-Z0-9]+$/i.test(p)) {
+        pushIssue({
+          severity: 'warning',
+          tableId: 'table1_control',
+          rowId: row.rowId,
+          columnKey: normList.includes(p) ? 'pointsNormal' : 'pointsReverse',
+          clauseRef: 'Cl. I.2.11.9',
+          ruleName: 'Point Identifier Format Rule',
+          message: `Point identifier "${p}" in Route ${entry} -> ${exit} must follow standard "P-<alphanumeric>" format (e.g. P-11, P-17KL).`,
+          suggestedValue: normalizePointLabel(p),
+        });
+      }
+    }
+
+    // Verify mutual exclusivity: the same point cannot be required in BOTH Normal and Reverse for the same route
+    const normSet = new Set(normList.map((p) => p.toUpperCase()));
+    for (const revP of revList) {
+      if (normSet.has(revP.toUpperCase())) {
+        pushIssue({
+          severity: 'error',
+          tableId: 'table1_control',
+          rowId: row.rowId,
+          columnKey: 'pointsReverse',
+          clauseRef: 'Cl. I.2.11.9',
+          ruleName: 'Point Position Conflict',
+          message: `Point "${revP}" in Route ${entry} -> ${exit} cannot be required in BOTH Normal and Reverse positions.`,
         });
       }
     }

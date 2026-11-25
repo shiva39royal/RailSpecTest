@@ -1,0 +1,8 @@
+# X-Tractor Native CAD & OCR Engine Dependencies
+# Python 3.10+ required
+
+pymupdf>=1.24.0
+pytesseract>=0.3.10
+pillow>=10.2.0
+ezdxf>=1.1.0
+pypdf>=4.0.0

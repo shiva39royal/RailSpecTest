@@ -35,6 +35,7 @@ import { ExtractionWorkspace } from './components/ExtractionWorkspace';
 import { GeneratedTablesWorkspace } from './components/GeneratedTablesWorkspace';
 import { FinalPreviewWorkspace } from './components/FinalPreviewWorkspace';
 import { SettingsWorkspace } from './components/SettingsWorkspace';
+import { LandingPageModal } from './components/LandingPageModal';
 import type {
   CadDocumentData,
   DocumentMetadata,
@@ -144,6 +145,14 @@ export default function App() {
       return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
     } catch {
       return false;
+    }
+  });
+
+  const [isLandingOpen, setIsLandingOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('xtractor_hide_landing_v1') !== 'true';
+    } catch {
+      return true;
     }
   });
 
@@ -307,6 +316,36 @@ export default function App() {
       drawings: prev.drawings.map((d) => (d.id === drawingId ? { ...d, cadData } : d)),
     }));
   }, []);
+
+  const handleLoadSampleStation = useCallback(async () => {
+    try {
+      showToast('Loading sample Chitgidda (CTF) Station layout...', 'info');
+      const res = await fetchJsonWithRetry<{ drawing: UploadedDrawing }>(
+        '/api/drawings/load-spec-pdf',
+        () => ({ method: 'POST' }),
+        { fallbackError: 'Failed to load sample station PDF', maxRetries: 2 }
+      );
+      if (res && res.drawing) {
+        setProject((prev) => {
+          const exists = prev.drawings.some((d) => d.id === res.drawing.id);
+          const nextDrawings = exists
+            ? prev.drawings.map((d) => (d.id === res.drawing.id ? res.drawing : d))
+            : [res.drawing, ...prev.drawings];
+          return {
+            ...prev,
+            drawings: nextDrawings,
+            activeDrawingId: res.drawing.id,
+            activePageNumber: 1,
+            name: 'Chitgidda Station (CTF) - KAVACH Sample',
+          };
+        });
+        showToast('Sample Chitgidda Station loaded successfully!', 'success');
+        setActiveNav('viewer');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error loading sample station', 'error');
+    }
+  }, [showToast]);
 
   // Dynamic Extraction Flow (ONLY triggered on explicit Start Extraction click)
   const handleStartExtraction = useCallback(async () => {
@@ -1174,6 +1213,15 @@ export default function App() {
                   Save & Preview
                 </button>
               )}
+            <button
+              type="button"
+              onClick={() => setIsLandingOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
+              title="Open X-Tractor Welcome Banner & Quick Start"
+            >
+              <img src="/assets/icon.png" alt="X-Tractor Train Icon" className="w-3.5 h-3.5 object-contain rounded-xs" />
+              <span className="hidden sm:inline">Welcome Banner</span>
+            </button>
           </div>
         </header>
 
@@ -1317,6 +1365,15 @@ export default function App() {
           <span>{toast.message}</span>
         </div>
       )}
+
+      {/* Landing Page Modal on Startup & on Demand */}
+      <LandingPageModal
+        isOpen={isLandingOpen}
+        onClose={() => setIsLandingOpen(false)}
+        onStartUpload={() => setActiveNav('upload')}
+        onLoadSample={handleLoadSampleStation}
+        onViewTables={() => setActiveNav('tables')}
+      />
     </div>
   );
 }

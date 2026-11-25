@@ -17,6 +17,7 @@ import {
   classifySignalByStrictRules,
   deriveMovementAuthorityFromExitAspect,
   isCellEmpty,
+  normalizePointLabel,
 } from '../src/engine/kavachEngine';
 
 export interface DeterministicCadExtraction {
@@ -1147,43 +1148,56 @@ export function extractComponentsFromCad(
 
   for (const t of allTexts) {
     const c = t.clean;
-    // TIN: (N-205), N-204, TIN-12
-    const tinMatch = c.match(/^\(?((?:TIN)-\d+[A-Z]?)\)?$/i);
-    if (tinMatch) {
-      const lbl = tinMatch[1].toUpperCase();
-      const key = `tin:${lbl}`;
+    // 1. TIN: N-46, (N-46), N-205, TIN-12, (TIN-01)
+    const tinMatch = c.match(/^\(?((?:TIN|N)[-\s]?\d+[A-Z0-9]*)\)?$/i);
+    if (
+      tinMatch &&
+      !/^NOMINAL/i.test(c) &&
+      !/^NO\b/i.test(c) &&
+      !/^NOT\b/i.test(c) &&
+      !/^NONE/i.test(c)
+    ) {
+      let normTin = tinMatch[1].toUpperCase();
+      if (/^N\d+/i.test(normTin)) {
+        normTin = `N-${normTin.slice(1)}`;
+      } else if (/^TIN\d+/i.test(normTin)) {
+        normTin = `TIN-${normTin.slice(3)}`;
+      }
+      const key = `tin:${normTin}`;
       if (!seenMisc.has(key)) {
         seenMisc.add(key);
-        tins.push({ id: `tin_${tins.length + 1}`, label: lbl, x: t.x, y: t.y, layer: t.layer, subType: 'Track Identification Number' });
+        tins.push({ id: `tin_${tins.length + 1}`, label: normTin, x: t.x, y: t.y, layer: t.layer, subType: 'Track Identification Number' });
       }
       continue;
     }
 
-    // Pointers / Turnout Points: P-17, PT-101, N-45, IN-46, N51, N53, N56 (Indian Railways crossover normal/reverse points)
+    // 2. Pointers / Turnout Points: P-17, PT-101, IN-46, P11, 11PT
     if (
-      (/^(?:P-[A-Z0-9]+|PT[-\s]?\d+[A-Z0-9]*|P\d+[A-Z0-9]*|[I|]?N[-\s]?\d+[A-Z0-9]*)$/i.test(c) ||
+      (/^(?:P-[A-Z0-9]+|PT[-\s]?\d+[A-Z0-9]*|P\d+[A-Z0-9]*|IN[-\s]?\d+[A-Z0-9]*)$/i.test(c) ||
         /^\d+[A-Z]?\s*(?:A|B)?\s*PT$/i.test(c)) &&
       !/^DP/i.test(c) &&
       !/^NOMINAL/i.test(c) &&
       !/^NO\b/i.test(c)
     ) {
-      const cleanPt = c.toUpperCase().replace(/^[I|]/, '').trim();
-      const key = `pt:${cleanPt}`;
-      if (!seenMisc.has(key)) {
-        seenMisc.add(key);
-        points.push({
-          id: `pt_${points.length + 1}`,
-          label: cleanPt,
-          x: t.x,
-          y: t.y,
-          layer: t.layer,
-          subType: 'Pointer (Point)',
-        });
+      const cleanPt = normalizePointLabel(c);
+      if (cleanPt !== '-') {
+        const key = `pt:${cleanPt}`;
+        if (!seenMisc.has(key)) {
+          seenMisc.add(key);
+          points.push({
+            id: `pt_${points.length + 1}`,
+            label: cleanPt,
+            x: t.x,
+            y: t.y,
+            layer: t.layer,
+            subType: 'Pointer (Point)',
+          });
+        }
       }
       continue;
     }
 
-    // Axle Counter Detection Point (DP2A, DP4B) -> track_circuit category, NOT turnout point!
+    // 3. Axle Counter Detection Point (DP2A, DP4B) -> track_circuit category, NOT turnout point!
     if (/^DP[-\s]?\d+[A-Z]?$/i.test(c)) {
       const key = `dp:${c.toUpperCase()}`;
       if (!seenMisc.has(key)) {
@@ -1200,14 +1214,18 @@ export function extractComponentsFromCad(
       continue;
     }
 
-    // Track Circuit / Axle Counter: 08T, 09T, C01T, 08AC, 3329AC, UP_BPAC-1, DMT, UMT, CLT, ULT
-    if (/^(?:\d+[A-Z]?T|C\d+T|\d+AC|(?:UP|DN)[_-]?BPAC[-\s]?\d+|DMT|UMT|CLT|ULT|MLT|LLT)$/i.test(c)) {
-      const key = `tc:${c.toUpperCase()}`;
+    // 4. Track Circuit / Axle Counter: 08T, 09T, C01T, 08AC, 3329AC, UP_BPAC-1, DMT, UMT, CLT, ULT, MLT, LLT, RMT, LMT, CMT, TC-101, 1AT, 2AT, 3AT
+    if (
+      /^(?:\d+[A-Z]{0,2}T|C\d+T|\d+AC|(?:UP|DN)[_-]?BPAC[-\s]?\d+|DMT|UMT|CLT|ULT|MLT|LLT|RMT|LMT|CMT|TC[-\s]?\d+[A-Z0-9]*|\d+[A-Z]*\s*TC)$/i.test(c) &&
+      !/^NOMINAL/i.test(c)
+    ) {
+      const cleanTc = c.toUpperCase().replace(/\s+/g, '');
+      const key = `tc:${cleanTc}`;
       if (!seenMisc.has(key)) {
         seenMisc.add(key);
         trackCircuits.push({
           id: `tc_${trackCircuits.length + 1}`,
-          label: c,
+          label: cleanTc,
           x: t.x,
           y: t.y,
           layer: t.layer,
@@ -1448,6 +1466,7 @@ export function extractComponentsFromCad(
     inRoutePointsReverse: string[];
     inRouteTcs: string[];
     inRouteTins: string[];
+    overlapTins: string;
     inRouteLc?: SimpleItem;
     inRouteFm?: SimpleItem;
     isCrossoverOrLoopTurnout: boolean;
@@ -1550,46 +1569,274 @@ export function extractComponentsFromCad(
         : null;
     const distanceMeters = hasAllSegs ? totalDist : directDist;
 
-    // Only genuine turnout points (P..., PT...) inside this route (never Axle Counter DPs!)
-    const inRoutePoints = Array.from(
-      new Set(
-        points
-          .filter(
-            (p) =>
-              p.x >= Math.min(entry.x, exit.x) &&
-              p.x <= Math.max(entry.x, exit.x) &&
-              p.y >= Math.min(entry.y, exit.y) - yBandTol &&
-              p.y <= Math.max(entry.y, exit.y) + yBandTol
-          )
-          .map((p) => p.label)
-      )
-    );
+    // -----------------------------------------------------------------------
+    // Dynamic Route Direction & Point Position Resolution (Normal vs Reverse)
+    // Formula: D = L . T (Dot product of Route Vector L and Point's Tag Vector T)
+    // Zero-hardcoding: Purely computed from CAD coordinates and orientations.
+    // Overlap exclusion: Points past Exit Signal (lambda > 1.05) are strictly excluded (RDSO Cl. I.2.11.9).
+    // -----------------------------------------------------------------------
+    const rdx = exit.x - entry.x;
+    const rdy = exit.y - entry.y;
+    const rLen = Math.hypot(rdx, rdy);
+    const Lx = rLen > 1e-4 ? rdx / rLen : (entry.facing === 'RIGHT' ? 1 : -1);
+    const Ly = rLen > 1e-4 ? rdy / rLen : 0;
 
-    const acAndTcs = trackCircuits.filter(
-      (tc) =>
-        tc.subType !== 'Axle Counter Detection Point (DP)' &&
-        tc.x >= Math.min(entry.x, exit.x) - 10 * scaleFactor &&
-        tc.x <= Math.max(entry.x, exit.x) + 10 * scaleFactor &&
-        tc.y >= Math.min(entry.y, exit.y) - yBandTol &&
-        tc.y <= Math.max(entry.y, exit.y) + yBandTol
-    );
-    const inRouteTcs = Array.from(new Set(acAndTcs.map((tc) => tc.label)));
+    // Filter points geographically and topologically within the active route corridor [entry, exit]
+    const routePointsWithMeta: Array<{
+      label: string;
+      distAlong: number;
+      position: 'Normal' | 'Reverse';
+    }> = [];
 
-    // Station yard TINs only (NEVER include Block Section TINs in TINs Requires Free per RDSO Cl. I.2.11.12!)
-    const inRouteTins = Array.from(
-      new Set(
-        tins
-          .filter(
-            (tin) =>
-              !blockTinSet.has(tin.label) &&
-              tin.x >= Math.min(entry.x, exit.x) &&
-              tin.x <= Math.max(entry.x, exit.x) &&
-              tin.y >= Math.min(entry.y, exit.y) - yBandTol &&
-              tin.y <= Math.max(entry.y, exit.y) + yBandTol
-          )
-          .map((tin) => tin.label)
-      )
-    );
+    const seenRoutePtLabels = new Set<string>();
+
+    for (const p of points) {
+      const vx = p.x - entry.x;
+      const vy = p.y - entry.y;
+      const distAlong = vx * Lx + vy * Ly;
+      const perpDist = Math.abs(-Ly * vx + Lx * vy);
+
+      // Overlap exclusion: Points must fall strictly between entry signal and exit signal
+      // RDSO Cl. I.2.11.9: Overlap points already proved in interlocking are NOT included in TOC!
+      if (distAlong < -10 * scaleFactor || distAlong > rLen + 10 * scaleFactor) {
+        continue;
+      }
+
+      // Check lateral corridor distance tolerance
+      const maxPerp = isCrossoverOrLoopTurnout ? yBandTol * 2.2 : yBandTol * 1.3;
+      if (perpDist > maxPerp) {
+        continue;
+      }
+
+      const normLabel = normalizePointLabel(p.label);
+      if (normLabel === '-' || seenRoutePtLabels.has(normLabel)) {
+        continue;
+      }
+      seenRoutePtLabels.add(normLabel);
+
+      // Find the RFID tag closest to this point in the layout
+      let nearestTag: DetectedRfidTag | null = null;
+      let minTagDist = Infinity;
+
+      for (const rt of rfidTags) {
+        // Tag must be reasonably close to this track corridor
+        const tagVx = rt.x - entry.x;
+        const tagVy = rt.y - entry.y;
+        const tagPerp = Math.abs(-Ly * tagVx + Lx * tagVy);
+        if (tagPerp > yBandTol * 2.5) continue;
+
+        const d = Math.hypot(rt.x - p.x, rt.y - p.y);
+        if (d < minTagDist) {
+          minTagDist = d;
+          nearestTag = rt;
+        }
+      }
+
+      // Determine Tag direction vector T = (Tx, Ty)
+      let Tx = Lx;
+      let Ty = Ly;
+
+      if (nearestTag && minTagDist < 250 * scaleFactor) {
+        if (nearestTag.facing === 'RIGHT') {
+          Tx = 1;
+          Ty = 0;
+        } else if (nearestTag.facing === 'LEFT') {
+          Tx = -1;
+          Ty = 0;
+        } else if (nearestTag.directionLabel === 'Nominal') {
+          Tx = entry.facing === 'RIGHT' ? 1 : -1;
+          Ty = 0;
+        } else if (nearestTag.directionLabel === 'Reverse') {
+          Tx = entry.facing === 'RIGHT' ? -1 : 1;
+          Ty = 0;
+        }
+      } else {
+        // If no tag is co-located, use turnout path geometry:
+        // Straight paths align with route line vector; crossover/diverging paths deviate
+        Tx = isCrossoverOrLoopTurnout ? -Lx : Lx;
+        Ty = isCrossoverOrLoopTurnout ? -Ly : Ly;
+      }
+
+      // Compute vector dot product D = L . T
+      const dot = Lx * Tx + Ly * Ty;
+
+      // User Specification:
+      // If Tag is towards front (same direction as line) -> Normal
+      // If Tag is on opposite side / reverse -> Reverse
+      const position: 'Normal' | 'Reverse' = dot >= 0 ? 'Normal' : 'Reverse';
+
+      routePointsWithMeta.push({
+        label: normLabel,
+        distAlong,
+        position,
+      });
+    }
+
+    // Sort points in travel sequence along the route
+    routePointsWithMeta.sort((a, b) => a.distAlong - b.distAlong);
+
+    const normalPoints = routePointsWithMeta
+      .filter((pt) => pt.position === 'Normal')
+      .map((pt) => pt.label);
+
+    const reversePoints = routePointsWithMeta
+      .filter((pt) => pt.position === 'Reverse')
+      .map((pt) => pt.label);
+
+    // -----------------------------------------------------------------------
+    // Track Circuit Resolution (RDSO Cl. I.2.11.10)
+    // -----------------------------------------------------------------------
+    let resolvedTrackCircuits: string[] = [];
+
+    if (entry.isCallingOn) {
+      // For Calling-On signals, approach track circuit is required in Occupied condition
+      // Find approach track circuit immediately preceding entry signal post (distAlong <= 20, >= -120)
+      const approachTcs = trackCircuits
+        .filter((tc) => {
+          if (tc.subType === 'Axle Counter Detection Point (DP)') return false;
+          const vx = tc.x - entry.x;
+          const vy = tc.y - entry.y;
+          const distAlong = vx * Lx + vy * Ly;
+          const perpDist = Math.abs(-Ly * vx + Lx * vy);
+          return distAlong <= 20 * scaleFactor && distAlong >= -120 * scaleFactor && perpDist <= yBandTol * 1.5;
+        })
+        .sort((a, b) => {
+          const distA = Math.hypot(a.x - entry.x, a.y - entry.y);
+          const distB = Math.hypot(b.x - entry.x, b.y - entry.y);
+          return distA - distB;
+        });
+
+      if (approachTcs.length > 0) {
+        resolvedTrackCircuits = [`${approachTcs[0].label} (Occupied)`];
+      } else {
+        // Fallback: search for typical approach TC patterns near entry signal
+        const nearestTc = trackCircuits
+          .filter((tc) => tc.subType !== 'Axle Counter Detection Point (DP)' && Math.hypot(tc.x - entry.x, tc.y - entry.y) < 140 * scaleFactor)
+          .sort((a, b) => Math.hypot(a.x - entry.x, a.y - entry.y) - Math.hypot(b.x - entry.x, b.y - entry.y))[0];
+        resolvedTrackCircuits = nearestTc ? [`${nearestTc.label} (Occupied)`] : [];
+      }
+    } else {
+      // Running signal route: collect in-route track circuits + berthing circuit
+      const inRouteTcItems = trackCircuits
+        .filter((tc) => {
+          if (tc.subType === 'Axle Counter Detection Point (DP)') return false;
+          const vx = tc.x - entry.x;
+          const vy = tc.y - entry.y;
+          const distAlong = vx * Lx + vy * Ly;
+          const perpDist = Math.abs(-Ly * vx + Lx * vy);
+          const maxPerp = isCrossoverOrLoopTurnout ? yBandTol * 2.2 : yBandTol * 1.3;
+          return distAlong >= -15 * scaleFactor && distAlong <= rLen + 15 * scaleFactor && perpDist <= maxPerp;
+        })
+        .map((tc) => ({
+          label: tc.label,
+          distAlong: (tc.x - entry.x) * Lx + (tc.y - entry.y) * Ly,
+        }));
+
+      // Look for dedicated berthing track circuit for the line (e.g. DMT, UMT, CLT, ULT)
+      const berthingKeyword = entry.line.includes('DOWN') ? 'DMT'
+        : entry.line.includes('UP') && entry.line.includes('LOOP') ? 'ULT'
+        : entry.line.includes('UP') ? 'UMT'
+        : entry.line.includes('COMMON') ? 'CLT'
+        : entry.line.includes('LOOP') ? 'CLT'
+        : '';
+
+      const matchedBerthingTc = berthingKeyword
+        ? trackCircuits.find((tc) => tc.label.toUpperCase() === berthingKeyword)
+        : null;
+
+      if (matchedBerthingTc && !inRouteTcItems.some((item) => item.label.toUpperCase() === matchedBerthingTc.label.toUpperCase())) {
+        inRouteTcItems.push({
+          label: matchedBerthingTc.label,
+          distAlong: rLen * 0.9,
+        });
+      }
+
+      inRouteTcItems.sort((a, b) => a.distAlong - b.distAlong);
+      const seenTcs = new Set<string>();
+      for (const item of inRouteTcItems) {
+        if (!seenTcs.has(item.label.toUpperCase())) {
+          seenTcs.add(item.label.toUpperCase());
+          resolvedTrackCircuits.push(item.label);
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // TINs Requires Free Resolution (RDSO Cl. I.2.11.12)
+    // -----------------------------------------------------------------------
+    let resolvedRouteTins: string[] = [];
+
+    // Strictly excluded for Calling-On signals and Block Section departure routes
+    if (!entry.isCallingOn && entry.sectionType !== 'Absolute Block') {
+      const inRouteTinItems = tins
+        .filter((tin) => {
+          if (blockTinSet.has(tin.label.toUpperCase())) return false;
+          const vx = tin.x - entry.x;
+          const vy = tin.y - entry.y;
+          const distAlong = vx * Lx + vy * Ly;
+          const perpDist = Math.abs(-Ly * vx + Lx * vy);
+          const maxPerp = isCrossoverOrLoopTurnout ? yBandTol * 2.2 : yBandTol * 1.3;
+          return distAlong >= -10 * scaleFactor && distAlong <= rLen + 10 * scaleFactor && perpDist <= maxPerp;
+        })
+        .map((tin) => ({
+          label: tin.label,
+          distAlong: (tin.x - entry.x) * Lx + (tin.y - entry.y) * Ly,
+        }));
+
+      inRouteTinItems.sort((a, b) => a.distAlong - b.distAlong);
+      const seenTins = new Set<string>();
+      for (const item of inRouteTinItems) {
+        if (!seenTins.has(item.label.toUpperCase())) {
+          seenTins.add(item.label.toUpperCase());
+          resolvedRouteTins.push(item.label);
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // TINs Requires Free in Overlap Resolution (RDSO Cl. I.2.11.13)
+    // -----------------------------------------------------------------------
+    let resolvedOverlapTins = '-';
+
+    if (!entry.isCallingOn && entry.sectionType !== 'Absolute Block') {
+      // Overlap zone extends beyond exit signal (lambda > 1.0)
+      const overlapDistance = 180 * scaleFactor;
+
+      // Find overlap points beyond exit signal
+      const overlapPoints = points.filter((p) => {
+        const vx = p.x - entry.x;
+        const vy = p.y - entry.y;
+        const distAlong = vx * Lx + vy * Ly;
+        const perpDist = Math.abs(-Ly * vx + Lx * vy);
+        return distAlong > rLen && distAlong <= rLen + overlapDistance && perpDist <= yBandTol * 1.8;
+      });
+
+      // Find overlap TINs beyond exit signal
+      const overlapTins = tins
+        .filter((tin) => {
+          if (blockTinSet.has(tin.label.toUpperCase())) return false;
+          const vx = tin.x - entry.x;
+          const vy = tin.y - entry.y;
+          const distAlong = vx * Lx + vy * Ly;
+          const perpDist = Math.abs(-Ly * vx + Lx * vy);
+          return distAlong > rLen && distAlong <= rLen + overlapDistance && perpDist <= yBandTol * 2.5;
+        })
+        .sort((a, b) => {
+          const distA = Math.hypot(a.x - exit.x, a.y - exit.y);
+          const distB = Math.hypot(b.x - exit.x, b.y - exit.y);
+          return distA - distB;
+        });
+
+      if (overlapPoints.length > 0 && overlapTins.length >= 2) {
+        // Conditional proving based on point set
+        const pt = overlapPoints[0];
+        const ptLabel = normalizePointLabel(pt.label);
+        resolvedOverlapTins = `${ptLabel}(N): ${overlapTins[0].label}, ${ptLabel}(R): ${overlapTins[1].label}`;
+      } else if (overlapTins.length > 0) {
+        // Unconditional overlap TIN
+        resolvedOverlapTins = overlapTins[0].label;
+      }
+    }
 
     const inRouteLc = lcGates.find(
       (lc) => lc.x >= Math.min(entry.x, exit.x) && lc.x <= Math.max(entry.x, exit.x)
@@ -1610,10 +1857,11 @@ export function extractComponentsFromCad(
       tagSequenceStr: seqParts.join(', '),
       distanceMeters,
       aTagReset,
-      inRoutePointsNormal: isCrossoverOrLoopTurnout ? [] : inRoutePoints,
-      inRoutePointsReverse: isCrossoverOrLoopTurnout ? inRoutePoints : [],
-      inRouteTcs,
-      inRouteTins,
+      inRoutePointsNormal: normalPoints,
+      inRoutePointsReverse: reversePoints,
+      inRouteTcs: resolvedTrackCircuits,
+      inRouteTins: resolvedRouteTins,
+      overlapTins: resolvedOverlapTins,
       inRouteLc,
       inRouteFm,
       isCrossoverOrLoopTurnout,
@@ -1758,16 +2006,14 @@ export function extractComponentsFromCad(
             aspectExit: asp.aspectExit,
             pointsNormal: route.inRoutePointsNormal.length > 0 ? route.inRoutePointsNormal.join(', ') : '-',
             pointsReverse: route.inRoutePointsReverse.length > 0 ? route.inRoutePointsReverse.join(', ') : '-',
-            trackCircuitUp: route.entry.isCallingOn
-              ? route.inRouteTcs[0] ? `${route.inRouteTcs[0]} (Occupied)` : '-'
-              : route.inRouteTcs.length > 0 ? route.inRouteTcs.join(', ') : '-',
+            trackCircuitUp: route.inRouteTcs.length > 0 ? route.inRouteTcs.join(', ') : '-',
             tinsFree:
               route.entry.isCallingOn || isBlockRoute
                 ? '-'
                 : route.inRouteTins.length > 0
                   ? route.inRouteTins.join(', ')
                   : '-',
-            tinsOverlap: '-',
+            tinsOverlap: route.overlapTins || '-',
             entryFootTag: route.entry.footTag?.label || '',
             enRouteTags: route.tagSequenceStr,
             distanceMeters: route.distanceMeters !== null ? String(route.distanceMeters) : '',

@@ -1,74 +1,37 @@
 [
   {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_b7838e20-079.pdf",
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_ea82b5b5-2a3.pdf",
     "drawing": {
-      "id": "drw_b7838e20-079",
-      "fileName": "UJAIRPUR_RFID_TAG_TIN_LAYOUT_SIL-4.pdf",
+      "id": "drw_ea82b5b5-2a3",
+      "fileName": "Chitgidda_Layout.pdf",
       "format": "PDF",
-      "sizeBytes": 73351483,
-      "uploadedAt": "2026-11-24T06:46:10.397Z",
+      "sizeBytes": 639625,
+      "uploadedAt": "2026-11-25T05:18:11.092Z",
       "role": "primary_layout",
       "validationStatus": "valid",
       "validationNotes": [
-        "Validated PDF signature (PDF 1.4).",
-        "Detected 1 PDF sheet. Tight drawing border: 2919×6413 pt."
+        "Validated PDF signature (PDF 1.6).",
+        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
       ],
       "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_b7838e20-079/file",
+      "fileUrl": "/api/drawings/drw_ea82b5b5-2a3/file",
       "pdfMetadata": {
         "pageCount": 1,
-        "width": 2918.88,
-        "height": 6412.68,
+        "width": 842,
+        "height": 4082,
         "contentBounds": {
           "pageNumber": 1,
-          "pageWidth": 2918.88,
-          "pageHeight": 6412.68,
-          "llx": 0,
-          "lly": 0,
-          "urx": 2918.88,
-          "ury": 6412.68,
-          "cropX": 0,
-          "cropY": 0,
-          "cropWidth": 2918.88,
-          "cropHeight": 6412.68,
-          "trimmedRatio": 0
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_c038b719-624.pdf",
-    "drawing": {
-      "id": "drw_c038b719-624",
-      "fileName": "JANKAMPET JN.pdf",
-      "format": "PDF",
-      "sizeBytes": 4745130,
-      "uploadedAt": "2026-11-24T09:01:24.918Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.4).",
-        "Detected 1 PDF sheet. Tight drawing border: 1134×4414 pt."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_c038b719-624/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 1133.76,
-        "height": 4414.32,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 1133.76,
-          "pageHeight": 4414.32,
-          "llx": 0,
-          "lly": 0,
-          "urx": 1133.76,
-          "ury": 4414.32,
-          "cropX": 0,
-          "cropY": 0,
-          "cropWidth": 1133.76,
-          "cropHeight": 4414.32,
-          "trimmedRatio": 0
+          "pageWidth": 842,
+          "pageHeight": 4082,
+          "llx": 0.8,
+          "lly": 1951.26,
+          "urx": 842,
+          "ury": 2130,
+          "cropX": 0.8,
+          "cropY": 1952,
+          "cropWidth": 841.2,
+          "cropHeight": 178.74,
+          "trimmedRatio": 0.9562542440539021
         }
       }
     }
