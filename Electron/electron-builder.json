@@ -16,6 +16,8 @@
     "server/**/*",
     "public/**/*",
     "data/**/*",
+    "!data/projects/*.json",
+    "!data/uploads/*.pdf",
     "Electron/main.cjs",
     "Electron/preload.cjs",
     "Electron/assets/**/*",

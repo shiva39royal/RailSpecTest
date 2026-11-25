@@ -887,13 +887,20 @@ def get_pdf_metadata(pdf_path, page_num=1):
         texts.append(embedded)
 
     # Render targeted high-DPI crops inside the ACTUAL drawing ink bounds:
-    # 1. Top-center station header (tall enough to include Station ID & KM below station name)
-    # 2. Full top header band, 3. Bottom-left title block, 4. Bottom-right title block
+    # Cap scale by both width and height so tall portrait scans (e.g. 1134x4414) stay crisp without 8000px bitmaps.
+    def safe_scale(rect_w, rect_h, max_px=2400.0):
+        return min(6.5, max(1.6, max_px / max(rect_w, rect_h, 1.0)))
+
+    r_center = pymupdf.Rect(x0 + cw * 0.22, y0, x0 + cw * 0.78, y0 + ch * 0.24)
+    r_top = pymupdf.Rect(x0, y0, x1, y0 + ch * 0.25)
+    r_bot_l = pymupdf.Rect(x0, y0 + ch * 0.65, x0 + cw * 0.48, y1)
+    r_bot_r = pymupdf.Rect(x0 + cw * 0.52, y0 + ch * 0.65, x1, y1)
+
     crops = [
-        (pymupdf.Rect(x0 + cw * 0.30, y0, x0 + cw * 0.70, y0 + ch * 0.38), min(7.0, max(5.0, 2400.0 / max(cw * 0.40, 1.0))), True),
-        (pymupdf.Rect(x0, y0, x1, y0 + ch * 0.25), min(5.0, max(2.8, 2800.0 / max(cw, 1.0))), True),
-        (pymupdf.Rect(x0, y0 + ch * 0.62, x0 + cw * 0.45, y1), min(6.0, max(3.5, 2200.0 / max(cw * 0.45, 1.0))), False),
-        (pymupdf.Rect(x0 + cw * 0.55, y0 + ch * 0.62, x1, y1), min(6.0, max(3.5, 2200.0 / max(cw * 0.45, 1.0))), False),
+        (r_center, safe_scale(r_center.width, r_center.height, 2600.0), True),
+        (r_top, safe_scale(r_top.width, r_top.height, 2600.0), True),
+        (r_bot_l, safe_scale(r_bot_l.width, r_bot_l.height, 2400.0), False),
+        (r_bot_r, safe_scale(r_bot_r.width, r_bot_r.height, 2400.0), False),
     ]
     for clip, scale, is_hdr in crops:
         try:
@@ -924,12 +931,12 @@ def get_pdf_metadata(pdf_path, page_num=1):
         "AVOIDANCE SYSTEM", "COLLISION AVOIDANCE", "SYSTEM", "TCAS", "INDIAN RAILWAYS",
     }
 
-    # 1. Station Name (Code), e.g. CHITGIDDA (CTF), JANAKAMPET (JKM)
+    # 1. Station Name (Code), e.g. CHITGIDDA (CTF), JANKAMPET Jn. (JKM)
     for line in full_text.splitlines():
         clean = re.sub(r'\s+', ' ', line).strip()
         if not clean:
             continue
-        m_nc = re.search(r'\b([A-Z][A-Z\s.-]{2,24}?)\s*\(([A-Z]{2,5})\)', clean)
+        m_nc = re.search(r'\b([A-Z][A-Za-z\s.-]{2,26}?)\s*\(([A-Z]{2,5})\)', clean)
         if m_nc:
             cand_name = m_nc.group(1).strip(" .-:")
             cand_code = m_nc.group(2).strip()

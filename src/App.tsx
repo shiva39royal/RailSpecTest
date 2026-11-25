@@ -261,14 +261,18 @@ export default function App() {
       if (sourceFile) {
         drawingFilesRef.current.set(drawing.id, sourceFile);
       }
-      setProject((prev) => ({
-        ...prev,
-        updatedAt: new Date().toISOString(),
-        name: prev.drawings.length === 0 ? drawing.fileName.replace(/\.[^.]+$/, '') : prev.name,
-        drawings: [...prev.drawings, drawing],
-        activeDrawingId: prev.activeDrawingId || drawing.id,
-        activePageNumber: 1,
-      }));
+      setProject((prev) => {
+        const isFirstOrPrimary = prev.drawings.length === 0 || drawing.role === 'primary_layout';
+        return {
+          ...prev,
+          updatedAt: new Date().toISOString(),
+          name: isFirstOrPrimary ? drawing.fileName.replace(/\.[^.]+$/, '') : prev.name,
+          drawings: [...prev.drawings, drawing],
+          activeDrawingId: drawing.role === 'primary_layout' ? drawing.id : prev.activeDrawingId || drawing.id,
+          activePageNumber: 1,
+          ...(isFirstOrPrimary ? { metadata: createEmptyMetadata(), extractionStatus: 'idle' as const } : {}),
+        };
+      });
       showToast(`Validated and loaded "${drawing.fileName}" (${drawing.format}).`, 'success');
     },
     [showToast]

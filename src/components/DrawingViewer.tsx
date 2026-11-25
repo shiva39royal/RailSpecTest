@@ -203,8 +203,8 @@ export function DrawingViewer({
 
     // Extract live station metadata preview from loaded CAD annotations or backend PDF OCR metadata
     useEffect(() => {
+      setDetectedMeta({ stationName: '', stationCode: '', stationId: '', kmDetails: '', division: '', section: '' });
       if (!drawing) {
-        setDetectedMeta({ stationName: '', stationCode: '', stationId: '', kmDetails: '' });
         return;
       }
       if (drawing.format !== 'PDF') {
@@ -1191,14 +1191,14 @@ export function DrawingViewer({
           </div>
         </div>
 
-        {/* Station Layout Metadata Strip above viewport */}
+        {/* Station Layout Metadata Strip above viewport (always prioritizes active drawing's own detected metadata) */}
         {(() => {
-          const stationName = metadata?.stationName?.trim() || detectedMeta.stationName;
-          const stationCode = metadata?.stationCode?.trim() || detectedMeta.stationCode;
-          const stationId = metadata?.stationId?.trim() || detectedMeta.stationId;
-          const kmDetails = metadata?.stationKm?.trim() || detectedMeta.kmDetails;
-          const division = metadata?.division?.trim() || detectedMeta.division;
-          const section = metadata?.section?.trim() || detectedMeta.section;
+          const stationName = detectedMeta.stationName || metadata?.stationName?.trim();
+          const stationCode = detectedMeta.stationCode || metadata?.stationCode?.trim();
+          const stationId = detectedMeta.stationId || metadata?.stationId?.trim();
+          const kmDetails = detectedMeta.kmDetails || metadata?.stationKm?.trim();
+          const division = detectedMeta.division || metadata?.division?.trim();
+          const section = detectedMeta.section || metadata?.section?.trim();
           return (
             <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-1.5 px-4 py-2 bg-slate-100/80 border-b border-slate-200 text-xs">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
