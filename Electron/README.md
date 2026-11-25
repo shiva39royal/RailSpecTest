@@ -55,7 +55,7 @@ X-Tractor runs as a unified, high-performance offline desktop application using 
 railspectest/
 ├── Electron/
 │   ├── assets/
-│   │   ├── banner.gif          <-- Ultra-realistic 8K HDR animated signalling banner (960x540)
+│   │   ├── banner.gif          <-- Animated railway signalling banner (800x450)
 │   │   ├── icon.ico            <-- Windows multi-size train icon (16, 32, 48, 64, 128, 256)
 │   │   └── icon.png            <-- High-res 512x512 train icon
 │   ├── scripts/

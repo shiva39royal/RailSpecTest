@@ -1,6 +1,6 @@
 {
   "appId": "com.railspec.xtractor",
-  "productName": "X-Tractor",
+  "productName": "X-tractor",
   "copyright": "Copyright © 2026 RailSpec KAVACH TOC Studio",
   "directories": {
     "output": "dist-installer"
@@ -51,7 +51,7 @@
       }
     ],
     "icon": "Electron/assets/icon.ico",
-    "executableName": "X-Tractor"
+    "executableName": "X-tractor"
   },
   "nsis": {
     "oneClick": false,
@@ -60,7 +60,8 @@
     "allowElevation": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "X-Tractor",
+    "shortcutName": "X-tractor",
+    "artifactName": "X-tractor Setup ${version}.${ext}",
     "installerIcon": "Electron/assets/icon.ico",
     "uninstallerIcon": "Electron/assets/icon.ico",
     "installerHeaderIcon": "Electron/assets/icon.ico",
