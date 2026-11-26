@@ -693,6 +693,7 @@ def process_pdf(pdf_path, page_num=1):
     lines = []
     for d in drawings:
         r = d.get('rect')
+        items = d.get('items') or []
         color = '#0f172a'
         if d.get('color'):
             c = d['color']
@@ -703,8 +704,11 @@ def process_pdf(pdf_path, page_num=1):
         cx = (r.x0 + r.x1) / 2
         cy = page_h - (r.y0 + r.y1) / 2
         rad = (w + h) / 4
-        
-        if 2.0 <= rad <= 40.0 and abs(w - h) < 3.0:
+
+        has_curves = any(it[0] == 'c' for it in items)
+        line_items = [it for it in items if it[0] == 'l']
+
+        if 0.8 <= rad <= 40.0 and abs(w - h) < max(3.0, rad * 0.45) and (has_curves or 7 <= len(line_items) <= 12):
             cid = f"circle_{len(circles)+1}"
             circles.append({
                 "id": cid,
@@ -722,25 +726,49 @@ def process_pdf(pdf_path, page_num=1):
                 "center": {"x": round(cx, 2), "y": round(cy, 2)},
                 "radius": round(rad, 2)
             })
-        elif (w > 10.0 or h > 10.0) and (w < 4.0 or h < 4.0):
-            lid = f"line_{len(lines)+1}"
-            lines.append({
-                "id": lid,
-                "x1": round(r.x0, 2),
-                "y1": round(page_h - r.y0, 2),
-                "x2": round(r.x1, 2),
-                "y2": round(page_h - r.y1, 2),
-                "layer": "PDF_VECTOR",
-                "color": color
-            })
+        elif len(line_items) == 2 and not has_curves and 2.0 <= w <= 18.0 and 2.0 <= h <= 18.0:
+            # 2-segment L-corner (e.g. quarter-circle shunt dome corner)
+            p1, p2 = line_items[0][1], line_items[0][2]
+            p3 = line_items[1][2]
+            pid = f"poly_{len(entities)+1}"
             entities.append({
-                "id": lid,
-                "type": "LINE",
+                "id": pid,
+                "type": "LWPOLYLINE",
                 "layer": "PDF_VECTOR",
                 "color": color,
-                "start": {"x": round(r.x0, 2), "y": round(page_h - r.y0, 2)},
-                "end": {"x": round(r.x1, 2), "y": round(page_h - r.y1, 2)}
+                "points": [
+                    {"x": round(p1.x, 2), "y": round(page_h - p1.y, 2)},
+                    {"x": round(p2.x, 2), "y": round(page_h - p2.y, 2)},
+                    {"x": round(p3.x, 2), "y": round(page_h - p3.y, 2)},
+                ]
             })
+
+        # Always extract individual line segments (including short/diagonal signal aspect strokes)
+        for it in line_items:
+            p1, p2 = it[1], it[2]
+            seg_len = ((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2) ** 0.5
+            if seg_len >= 0.4:
+                x1, y1 = round(p1.x, 2), round(page_h - p1.y, 2)
+                x2, y2 = round(p2.x, 2), round(page_h - p2.y, 2)
+                lid = f"line_{len(lines)+1}"
+                lines.append({
+                    "id": lid,
+                    "x1": x1,
+                    "y1": y1,
+                    "x2": x2,
+                    "y2": y2,
+                    "layer": "PDF_VECTOR",
+                    "color": color
+                })
+                entities.append({
+                    "id": lid,
+                    "type": "LINE",
+                    "layer": "PDF_VECTOR",
+                    "color": color,
+                    "points": [{"x": x1, "y": y1}, {"x": x2, "y": y2}],
+                    "start": {"x": x1, "y": y1},
+                    "end": {"x": x2, "y": y2}
+                })
 
     output_w = rot_page_rect.width if ('is_rot' in locals() and is_rot) else page_w
     output_h = rot_page_rect.height if ('is_rot' in locals() and is_rot) else page_h

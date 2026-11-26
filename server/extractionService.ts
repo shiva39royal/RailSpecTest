@@ -1,4 +1,10 @@
+import { execFile } from 'child_process';
 import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 import {
   CadDocumentData,
   ComponentRelationship,
@@ -422,11 +428,91 @@ export async function runDynamicExtraction(
   const { cadData, sourceLabel, vectorSummary } = resolvedDoc;
 
   // Run deterministic offline CAD/PDF vector extraction
-  const detResult: DeterministicCadExtraction = extractComponentsFromCad(
+  let detResult: DeterministicCadExtraction = extractComponentsFromCad(
     cadData,
     sourceLabel,
     req.settings
   );
+
+  // If any real signal/shunt heads had vectorized (exploded SHX) labels, run targeted whole-head OCR
+  const unlabeledCandidates = detResult.reviewCandidates || [];
+  if (unlabeledCandidates.length > 0 && req.filePath && fs.existsSync(req.filePath)) {
+    const scriptPath = path.resolve(process.cwd(), 'server', 'signalLabelOcr.py');
+    if (fs.existsSync(scriptPath)) {
+      const targets: Array<{
+        id: string;
+        x: number;
+        y: number;
+        minX: number;
+        maxX: number;
+        minY: number;
+        maxY: number;
+        polylines?: number[][][];
+      }> = [];
+      for (const s of unlabeledCandidates) {
+        if (req.drawing.format === 'PDF') {
+          targets.push({ id: s.id, x: s.x, y: s.y, minX: s.minX, maxX: s.maxX, minY: s.minY, maxY: s.maxY });
+        } else {
+          const polylines: number[][][] = [];
+          for (const e of cadData.entities) {
+            if ((e.type === 'LINE' || e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') && e.points && e.points.length >= 2) {
+              const pts = e.points;
+              if (pts.some((p) => p.x >= s.minX - 18 && p.x <= s.maxX + 18 && p.y >= s.minY - 10 && p.y <= s.maxY + 10)) {
+                polylines.push(pts.map((p) => [p.x, p.y]));
+              }
+            }
+          }
+          targets.push({ id: s.id, x: s.x, y: s.y, minX: s.minX, maxX: s.maxX, minY: s.minY, maxY: s.maxY, polylines });
+        }
+      }
+
+      if (targets.length > 0) {
+        const tmpIn = path.join(os.tmpdir(), `sig_ocr_in_${Date.now()}.json`);
+        const tmpOut = path.join(os.tmpdir(), `sig_ocr_out_${Date.now()}.json`);
+        try {
+          fs.writeFileSync(
+            tmpIn,
+            JSON.stringify({
+              mode: req.drawing.format === 'PDF' ? 'pdf' : 'dwg',
+              filePath: req.filePath,
+              pageNum: targetPage,
+              targets,
+            })
+          );
+          const pythonBin = process.env.PYTHON_PATH || 'python';
+          await execFileAsync(pythonBin, [scriptPath, tmpIn, tmpOut], { timeout: 60000 });
+          if (fs.existsSync(tmpOut)) {
+            const ocrMap: Record<string, Array<{ text: string; x: number; y: number }>> = JSON.parse(
+              fs.readFileSync(tmpOut, 'utf8')
+            );
+            let added = 0;
+            for (const [tid, toks] of Object.entries(ocrMap)) {
+              for (let idx = 0; idx < toks.length; idx++) {
+                const tok = toks[idx];
+                cadData.textAnnotations.push({
+                  id: `sig_ocr_${tid}_${idx}`,
+                  text: tok.text,
+                  x: tok.x,
+                  y: tok.y,
+                  height: 1.4,
+                  layer: 'SIG_OCR',
+                });
+                added++;
+              }
+            }
+            if (added > 0) {
+              detResult = extractComponentsFromCad(cadData, sourceLabel, req.settings);
+            }
+          }
+        } catch {
+          // Graceful fallback: keep geometric signals if OCR is unavailable
+        } finally {
+          try { fs.unlinkSync(tmpIn); } catch { /* ignore */ }
+          try { fs.unlinkSync(tmpOut); } catch { /* ignore */ }
+        }
+      }
+    }
+  }
 
   // Scan any attached companion sheets purely offline for supplemental metadata references and tables
   const companionData =
@@ -521,52 +607,54 @@ export async function runDynamicExtraction(
     componentsMap.set(norm.label.toUpperCase(), norm);
   }
 
-  // Ensure any signals mentioned in the active Table 1 exist in components list
-  for (const row of baseTables.table1_control) {
-    const entrySig = (row.cells.entrySignal || '').trim();
-    const exitSig = (row.cells.exitSignal || '').trim();
-    const footTag = (row.cells.entryFootTag || '').trim();
-    if (entrySig && !componentsMap.has(entrySig.toUpperCase())) {
-      componentsMap.set(entrySig.toUpperCase(), {
-        id: `sig_toc_${componentsMap.size + 1}`,
-        label: entrySig,
-        category: 'signal',
-        subType: (row.cells.signalType || 'Signal').trim(),
-        direction: 'Unknown',
-        layer: 'TOC_VERIFIED',
-        properties: {},
-        relatedIds: [],
-        confidence: 1.0,
-        sourceTrace: 'Verified from Table of Control companion sheet',
-      });
-    }
-    if (exitSig && exitSig !== '-' && !componentsMap.has(exitSig.toUpperCase())) {
-      componentsMap.set(exitSig.toUpperCase(), {
-        id: `sig_toc_${componentsMap.size + 1}`,
-        label: exitSig,
-        category: 'signal',
-        subType: 'Signal',
-        direction: 'Unknown',
-        layer: 'TOC_VERIFIED',
-        properties: {},
-        relatedIds: [],
-        confidence: 1.0,
-        sourceTrace: 'Verified from Table of Control companion sheet',
-      });
-    }
-    if (footTag && footTag !== '-' && !componentsMap.has(footTag.toUpperCase())) {
-      componentsMap.set(footTag.toUpperCase(), {
-        id: `rfid_toc_${componentsMap.size + 1}`,
-        label: footTag,
-        category: 'rfid_tag',
-        subType: 'Signal Foot Tag (S)',
-        direction: 'Unknown',
-        layer: 'TOC_VERIFIED',
-        properties: {},
-        relatedIds: [],
-        confidence: 1.0,
-        sourceTrace: 'Verified from Table of Control companion sheet',
-      });
+  // Ensure any signals mentioned in an explicitly attached companion Table 1 exist in components list
+  if (companionTables.table1_control.length > 0) {
+    for (const row of companionTables.table1_control) {
+      const entrySig = (row.cells.entrySignal || '').trim();
+      const exitSig = (row.cells.exitSignal || '').trim();
+      const footTag = (row.cells.entryFootTag || '').trim();
+      if (entrySig && !/^(?:SIG|SH)_\d+$/i.test(entrySig) && !componentsMap.has(entrySig.toUpperCase())) {
+        componentsMap.set(entrySig.toUpperCase(), {
+          id: `sig_toc_${componentsMap.size + 1}`,
+          label: entrySig,
+          category: 'signal',
+          subType: (row.cells.signalType || 'Signal').trim(),
+          direction: 'Unknown',
+          layer: 'TOC_VERIFIED',
+          properties: {},
+          relatedIds: [],
+          confidence: 1.0,
+          sourceTrace: 'Verified from Table of Control companion sheet',
+        });
+      }
+      if (exitSig && exitSig !== '-' && !/^(?:SIG|SH)_\d+$/i.test(exitSig) && !componentsMap.has(exitSig.toUpperCase())) {
+        componentsMap.set(exitSig.toUpperCase(), {
+          id: `sig_toc_${componentsMap.size + 1}`,
+          label: exitSig,
+          category: 'signal',
+          subType: 'Signal',
+          direction: 'Unknown',
+          layer: 'TOC_VERIFIED',
+          properties: {},
+          relatedIds: [],
+          confidence: 1.0,
+          sourceTrace: 'Verified from Table of Control companion sheet',
+        });
+      }
+      if (footTag && footTag !== '-' && !componentsMap.has(footTag.toUpperCase())) {
+        componentsMap.set(footTag.toUpperCase(), {
+          id: `rfid_toc_${componentsMap.size + 1}`,
+          label: footTag,
+          category: 'rfid_tag',
+          subType: 'Signal Foot Tag (S)',
+          direction: 'Unknown',
+          layer: 'TOC_VERIFIED',
+          properties: {},
+          relatedIds: [],
+          confidence: 1.0,
+          sourceTrace: 'Verified from Table of Control companion sheet',
+        });
+      }
     }
   }
 

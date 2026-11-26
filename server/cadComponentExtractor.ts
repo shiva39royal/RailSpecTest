@@ -20,6 +20,18 @@ import {
   normalizePointLabel,
 } from '../src/engine/kavachEngine';
 
+export interface ReviewSignalCandidate {
+  id: string;
+  x: number;
+  y: number;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  isShunt: boolean;
+  reasonCodes: string[];
+}
+
 export interface DeterministicCadExtraction {
   metadataHints: Partial<DocumentMetadata>;
   components: ExtractedComponent[];
@@ -27,6 +39,7 @@ export interface DeterministicCadExtraction {
   tables: Record<KavachTableId, TableRowRecord[]>;
   corridorSummaryText: string;
   missingCompanionInfo: string[];
+  reviewCandidates?: ReviewSignalCandidate[];
 }
 
 interface DetectedRfidTag {
@@ -722,9 +735,13 @@ export function extractComponentsFromCad(
   }
 
   // -------------------------------------------------------------------------
-  // 3. Detect Signal-Head Circles & Internal Line Patterns (Green/Yellow/Red/Double)
+  // 3. Detect Signal-Head Circles, SPLINE Quarter-Arcs, Octagons & Internal Strokes
+  // Supports Circular Lamps (CIRCLE / bulged LWPOLYLINE / 4-SPLINE arcs) and
+  // true 8-10 vertex Chamfered Octagons, requiring mandatory internal aspect strokes.
   // -------------------------------------------------------------------------
-  const detectedCircles: Array<{ x: number; y: number; r: number; blockSource?: string; layer: string }> = [];
+  const rawDetectedCircles: Array<{ x: number; y: number; r: number; blockSource?: string; layer: string }> = [];
+  const quarterArcs: Array<{ cx: number; cy: number; r: number; blockSource?: string; layer: string }> = [];
+
   for (const e of cad.entities) {
     if (
       e.type === 'CIRCLE' &&
@@ -733,7 +750,7 @@ export function extractComponentsFromCad(
       e.radius > 0.2 &&
       e.radius < cad.bounds.width * 0.025
     ) {
-      detectedCircles.push({ x: e.center.x, y: e.center.y, r: e.radius, blockSource: e.blockSource, layer: e.layer });
+      rawDetectedCircles.push({ x: e.center.x, y: e.center.y, r: e.radius, blockSource: e.blockSource, layer: e.layer });
     } else if ((e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') && e.points && e.points.length >= 8) {
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       for (const p of e.points) {
@@ -744,14 +761,103 @@ export function extractComponentsFromCad(
       }
       const w = maxX - minX;
       const h = maxY - minY;
-      if (w > 0.4 && h > 0.4 && w < cad.bounds.width * 0.05 && Math.abs(w - h) / Math.max(w, h) < 0.2) {
+      if (w > 0.4 && h > 0.4 && w < cad.bounds.width * 0.05 && h < cad.bounds.height * 0.05) {
         const cx = (minX + maxX) / 2;
         const cy = (minY + maxY) / 2;
         const r = (w + h) / 4;
-        if (e.points.every((p) => { const d = Math.hypot(p.x - cx, p.y - cy); return d >= r * 0.78 && d <= r * 1.22; })) {
-          detectedCircles.push({ x: cx, y: cy, r, blockSource: e.blockSource, layer: e.layer });
+        const ratio = Math.min(w, h) / Math.max(w, h);
+
+        // 1. Bulged circular polyline / circular ring (or PDF sampled curve)
+        const isCircularRing =
+          ratio >= 0.75 &&
+          e.points.every((p) => {
+            const d = Math.hypot(p.x - cx, p.y - cy);
+            return d >= r * 0.75 && d <= r * 1.25;
+          });
+
+        // 2. Strict chamfered octagon (8 to 10 vertices, balanced aspect ratio)
+        const isOctagon = ratio >= 0.55 && e.points.length >= 8 && e.points.length <= 10;
+
+        if (isCircularRing || isOctagon) {
+          rawDetectedCircles.push({ x: cx, y: cy, r, blockSource: e.blockSource, layer: e.layer });
         }
       }
+    } else if (e.type === 'SPLINE' && e.points && e.points.length === 4) {
+      const p0 = e.points[0], p1 = e.points[1], p2 = e.points[2], p3 = e.points[3];
+      const dx = Math.abs(p3.x - p0.x);
+      const dy = Math.abs(p3.y - p0.y);
+      if (dx >= 0.25 && dy >= 0.25 && dx < cad.bounds.width * 0.025 && Math.abs(dx - dy) <= Math.max(dx, dy) * 0.25) {
+        const mxCtrl = (p1.x + p2.x) / 2;
+        const myCtrl = (p1.y + p2.y) / 2;
+        const c1x = p0.x, c1y = p3.y;
+        const c2x = p3.x, c2y = p0.y;
+        const d1 = Math.hypot(mxCtrl - c1x, myCtrl - c1y);
+        const d2 = Math.hypot(mxCtrl - c2x, myCtrl - c2y);
+        const cx = d1 > d2 ? c1x : c2x;
+        const cy = d1 > d2 ? c1y : c2y;
+        const r = (dx + dy) / 2;
+        quarterArcs.push({ cx, cy, r, blockSource: e.blockSource, layer: e.layer });
+      }
+    } else if (e.type === 'SPLINE' && e.points && e.points.length >= 8) {
+      // Closed multi-point NURBS SPLINE chamber (e.g. 13-control-point circular/octagonal lamp in GT-BT.dwg)
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const p of e.points) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      }
+      const w = maxX - minX;
+      const h = maxY - minY;
+      if (w > 0.4 && h > 0.4 && w < cad.bounds.width * 0.05 && h < cad.bounds.height * 0.05) {
+        const ratio = Math.min(w, h) / Math.max(w, h);
+        if (ratio >= 0.55) {
+          rawDetectedCircles.push({
+            x: (minX + maxX) / 2,
+            y: (minY + maxY) / 2,
+            r: (w + h) / 4,
+            blockSource: e.blockSource,
+            layer: e.layer,
+          });
+        }
+      }
+    }
+  }
+
+  // Assemble 4-SPLINE quarter-arc circles
+  const usedArc = new Array(quarterArcs.length).fill(false);
+  for (let i = 0; i < quarterArcs.length; i++) {
+    if (usedArc[i]) continue;
+    usedArc[i] = true;
+    const base = quarterArcs[i];
+    let count = 1;
+    let sumX = base.cx, sumY = base.cy, sumR = base.r;
+    for (let j = i + 1; j < quarterArcs.length; j++) {
+      if (usedArc[j]) continue;
+      if (Math.hypot(quarterArcs[j].cx - base.cx, quarterArcs[j].cy - base.cy) <= Math.max(base.r * 0.2, 0.15)) {
+        usedArc[j] = true;
+        count++;
+        sumX += quarterArcs[j].cx;
+        sumY += quarterArcs[j].cy;
+        sumR += quarterArcs[j].r;
+      }
+    }
+    if (count >= 3) {
+      rawDetectedCircles.push({
+        x: sumX / count,
+        y: sumY / count,
+        r: sumR / count,
+        blockSource: base.blockSource,
+        layer: base.layer,
+      });
+    }
+  }
+
+  // Deduplicate overlapping chamber detections (e.g. nested border rings)
+  const detectedCircles: typeof rawDetectedCircles = [];
+  for (const c of rawDetectedCircles) {
+    if (!detectedCircles.some((uc) => Math.hypot(uc.x - c.x, uc.y - c.y) < Math.max(uc.r, c.r) * 0.4)) {
+      detectedCircles.push(c);
     }
   }
 
@@ -762,7 +868,7 @@ export function extractComponentsFromCad(
         const p1 = e.points[i];
         const p2 = e.points[i + 1];
         const len = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-        if (len > 0.1 && len < cad.bounds.width * 0.05) {
+        if (len > 0.08 && len < cad.bounds.width * 0.05) {
           chordSegments.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, mx: (p1.x + p2.x) / 2, my: (p1.y + p2.y) / 2, len });
         }
       }
@@ -782,8 +888,8 @@ export function extractComponentsFromCad(
   for (const c of detectedCircles) {
     let horiz = 0, vert = 0, diagPos = 0, diagNeg = 0;
     for (const s of chordSegments) {
-      if (Math.abs(s.mx - c.x) > c.r * 0.9 || Math.abs(s.my - c.y) > c.r * 0.9) continue;
-      if (s.len < c.r * 0.6 || s.len > c.r * 2.5) continue;
+      if (Math.hypot(s.mx - c.x, s.my - c.y) > c.r * 0.9) continue;
+      if (s.len < c.r * 0.55 || s.len > c.r * 2.6) continue;
       if (Math.hypot(s.x1 - c.x, s.y1 - c.y) > c.r * 1.35 || Math.hypot(s.x2 - c.x, s.y2 - c.y) > c.r * 1.35) continue;
       const angleDeg = ((Math.atan2(s.y2 - s.y1, s.x2 - s.x1) * 180) / Math.PI + 180) % 180;
       if (angleDeg <= 18 || angleDeg >= 162) horiz++;
@@ -791,6 +897,7 @@ export function extractComponentsFromCad(
       else if (angleDeg > 18 && angleDeg < 72) diagPos++;
       else diagNeg++;
     }
+    // Mandatory internal stroke: prevents empty polygons / text glyphs from being treated as signal aspects
     if (horiz + vert + diagPos + diagNeg === 0) continue;
 
     let aspect: CircleAspect['aspect'] = 'Yellow';
@@ -871,7 +978,38 @@ export function extractComponentsFromCad(
 
   // Match each signal-head cluster with its Signal ID (robust railway numbering)
   const signals: DetectedSignal[] = [];
+  const reviewCandidates: ReviewSignalCandidate[] = [];
   const usedSignalTexts = new Set<string>();
+
+  // Dynamic layout-region zoning: detect bottom title-block / revision-history / legend band
+  // from actual note/title texts in the lower 25% of the drawing so revision-history IDs
+  // (e.g. ID09 at Y=154) and signature-box strokes never become trackside signals.
+  const lowerQuarterY = cad.bounds.minY + cad.bounds.height * 0.25;
+  let titleBlockMaxY = cad.bounds.minY + cad.bounds.height * (cad.bounds.height > 400 ? 0.19 : 0.14);
+  for (const t of allTexts) {
+    if (
+      t.y <= lowerQuarterY &&
+      /(?:REVISION|REV\.?NO|PREPARED\s*BY|CHECKED\s*BY|APPROVED\s*BY|LEGEND|NOTES?\s*:|ADDED\s+\d+\s+MORE\s+TAGS|SHIFTED\s+FROM|COMMUNICATION\s+MANDATORY\s+ZONE|DRG\.?\s*NO|SIGN\.|NAME\.)/i.test(
+        t.clean
+      )
+    ) {
+      if (t.y + 6 * scaleFactor > titleBlockMaxY) {
+        titleBlockMaxY = t.y + 6 * scaleFactor;
+      }
+    }
+  }
+  const isInNonTrackZone = (px: number, py: number): boolean => {
+    if (py <= titleBlockMaxY) return true;
+    // Reject STOP boards / non-signal markers
+    if (
+      allTexts.some(
+        (t) => /^STOP$/i.test(t.clean) && Math.hypot(t.x - px, t.y - py) <= 15 * Math.max(scaleFactor, 0.8)
+      )
+    ) {
+      return true;
+    }
+    return false;
+  };
 
   const findNearestFootTag = (x: number, y: number): DetectedRfidTag | undefined => {
     const sTag = rfidTags
@@ -882,8 +1020,6 @@ export function extractComponentsFromCad(
       .filter((rt) => Math.hypot(rt.x - x, rt.y - y) <= 65 * scaleFactor)
       .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
   };
-
-  const hasExplicitSPrefix = allTexts.some((t) => /^S[-]?\d{1,3}(?:\s*(?:ID|D|A|B|C|CO))?$/i.test(t.clean));
 
   const isPairedSwitchLabel = (label: string, x: number, y: number, selfId: string): boolean =>
     /^\d{1,2}[A-Z]?$/i.test(label) &&
@@ -901,12 +1037,13 @@ export function extractComponentsFromCad(
     raw: string,
     x: number,
     y: number,
-    selfId = ''
+    selfId = '',
+    layer = ''
   ): { normalizedLabel: string; isCallingOn: boolean } | null => {
     const clean = raw.trim();
     if (!clean || clean.length > 15) return null;
     if (
-      /^(?:UP|DN|DOWN|NO|ALT|REV|KM|CH|REF|VER|PU|IN|PT|N|FM|DP|BSLB|SLB|CLASS|GATE|LINE|LOOP|STATION|BUILDING|RFID|TIN|DRG|PLAN|SCALE|DATE|REV\.NO)/i.test(
+      /^(?:UP|DN|DOWN|NO|ALT|REV|KM|CH|REF|VER|PU|IN|PT|N|FM|DP|BSLB|SLB|CLASS|GATE|LINE|LOOP|STATION|BUILDING|RFID|TIN|DRG|PLAN|SCALE|DATE|REV\.NO|STOP)/i.test(
         clean
       )
     ) {
@@ -914,9 +1051,14 @@ export function extractComponentsFromCad(
     }
     if (/^\d{3,}$/.test(clean) || /^\d+\.\d+$/.test(clean)) return null;
 
-    // 1. Explicit Signal Prefixes: S1, S1D, S1 ID, S30, S30A, S24, SH1, C1, GS1, GS1D, IB1
+    // 0. Compound signal label (e.g. 201/ID02 from OCR or CAD): keep verbatim
+    if (/^\d{2,3}\/(?:ID|D|S|C)\d{1,3}[A-Z]?$/i.test(clean)) {
+      return { normalizedLabel: clean.toUpperCase(), isCallingOn: false };
+    }
+
+    // 1. Explicit Signal Prefixes: S1, S1D, S1 ID, S30, S30A, S24, SH1, C1, D01, ID01, GS1, GS1D, IB1
     const explicitMatch = clean.match(
-      /^(S|SH|GS|C|IB)[-]?(\d{1,3})(?:\s*(ID|D|A|B|C|S|CO)|\s*10|\s*([A-Z]*))?$/i
+      /^(S|SH|GS|C|IB|ID|D)[-]?(\d{1,3})(?:\s*(ID|D|A|B|C|S|CO)|\s*10|\s*([A-Z]*))?$/i
     );
     if (explicitMatch) {
       const prefix = explicitMatch[1].toUpperCase();
@@ -929,19 +1071,19 @@ export function extractComponentsFromCad(
     }
 
     // 2. Numeric with Signal Suffix: 1D, 1ID, 1 ID, 30D, 30ID, 30 ID, 3010, 1A, 30A, 1S, 1s
+    // Keep verbatim without synthesizing an 'S' prefix
     const suffixMatch = clean.match(/^(\d{1,3})(?:\s*(ID|D|A|B|C|S|CO)|10)$/i);
     if (suffixMatch) {
       const num = suffixMatch[1];
       let suffix = suffixMatch[2] ? suffixMatch[2].toUpperCase() : 'ID';
-      if (suffix === 'S' || suffix === 's') suffix = '';
-      const prefix = hasExplicitSPrefix ? 'S' : '';
-      const norm = `${prefix}${num}${suffix ? (suffix === 'ID' ? ' ID' : suffix) : ''}`;
+      if (suffix === 'S') suffix = '';
+      const norm = `${num}${suffix ? (suffix === 'ID' ? ' ID' : suffix) : ''}`;
       const isCo = suffix === 'A' || suffix === 'CO';
       return { normalizedLabel: norm, isCallingOn: isCo };
     }
 
     // 3. Standalone numeric signal number (1-99), e.g., 1, 3, 4, 24, 25, 26, 28
-    // MUST be anchored directly to a detected signal-head circle and NOT be a paired turnout switch number
+    // Keep verbatim as pure numeric (no forced 'S' prefix)
     const numMatch = clean.match(/^(\d{1,2})$/);
     if (numMatch) {
       const num = numMatch[1];
@@ -954,9 +1096,8 @@ export function extractComponentsFromCad(
           return Math.hypot(cx - x, cy - y) <= circleRadius;
         }) ||
         detectedCircles.some((c) => Math.hypot(c.x - x, c.y - y) <= circleRadius);
-      if (hasCircle && !isNearTurnoutJunction(x, y, Math.max(12 * scaleFactor, 8))) {
-        const prefix = hasExplicitSPrefix ? 'S' : '';
-        return { normalizedLabel: `${prefix}${num}`, isCallingOn: false };
+      if (hasCircle && (layer === 'SIG_OCR' || !isNearTurnoutJunction(x, y, Math.max(12 * scaleFactor, 8)))) {
+        return { normalizedLabel: num, isCallingOn: false };
       }
     }
 
@@ -967,11 +1108,17 @@ export function extractComponentsFromCad(
     const cx = grp.reduce((acc, g) => acc + g.x, 0) / grp.length;
     const cy = grp.reduce((acc, g) => acc + g.y, 0) / grp.length;
     const avgR = grp.reduce((acc, g) => acc + g.r, 0) / grp.length;
+    const headMinX = Math.min(...grp.map((g) => g.x - g.r));
+    const headMaxX = Math.max(...grp.map((g) => g.x + g.r));
+    const headMinY = Math.min(...grp.map((g) => g.y - g.r));
+    const headMaxY = Math.max(...grp.map((g) => g.y + g.r));
     const blockSource = grp.find((g) => g.blockSource)?.blockSource;
     const layer = grp[0].layer;
 
+    if (isInNonTrackZone(cx, cy)) continue;
+
     const nearby = allTexts
-      .filter((t) => Math.hypot(t.x - cx, t.y - cy) <= Math.max(avgR * 20, 52 * scaleFactor))
+      .filter((t) => !isInNonTrackZone(t.x, t.y) && Math.hypot(t.x - cx, t.y - cy) <= Math.max(avgR * 20, 52 * scaleFactor))
       .sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));
 
     let primaryMatch: { token: (typeof allTexts)[0]; norm: string; isCo: boolean } | null = null;
@@ -979,7 +1126,7 @@ export function extractComponentsFromCad(
 
     for (const t of nearby) {
       if (usedSignalTexts.has(t.id)) continue;
-      const parsed = tryParseSignalToken(t.clean, t.x, t.y, t.id);
+      const parsed = tryParseSignalToken(t.clean, t.x, t.y, t.id, t.layer);
       if (!parsed) continue;
       if (parsed.isCallingOn && !callingOnMatch) {
         callingOnMatch = { token: t, norm: parsed.normalizedLabel };
@@ -988,9 +1135,39 @@ export function extractComponentsFromCad(
       }
     }
 
-    if (!primaryMatch) continue;
+    const footTag = findNearestFootTag(cx, cy);
 
-    usedSignalTexts.add(primaryMatch.token.id);
+    if (!primaryMatch && grp.length >= 2) {
+      const specialLabel = nearby.find(
+        (t) =>
+          !usedSignalTexts.has(t.id) &&
+          /^(?:SH\s*\d+|206\/[A-Z0-9]+|S[-]?\d+)/i.test(t.clean)
+      );
+      if (specialLabel) {
+        primaryMatch = { token: specialLabel, norm: specialLabel.clean, isCo: false };
+      } else {
+        // Do NOT emit SIG_N placeholders into operational signals or TOC tables.
+        // Record as review candidate so OCR can inspect its whole-head bounds.
+        reviewCandidates.push({
+          id: `rev_${reviewCandidates.length + 1}`,
+          x: cx,
+          y: cy,
+          minX: headMinX,
+          maxX: headMaxX,
+          minY: headMinY,
+          maxY: headMaxY,
+          isShunt: false,
+          reasonCodes: ['MISSING_LABEL'],
+        });
+        continue;
+      }
+    }
+
+    if (!primaryMatch) continue;
+    // A single-circle detection matched to an SH label is a shunt position-light dot (handled in 3b)
+    if (grp.length === 1 && /^SH[-]?\d+/i.test(primaryMatch.norm)) continue;
+
+    if (primaryMatch.token.id) usedSignalTexts.add(primaryMatch.token.id);
     if (callingOnMatch) usedSignalTexts.add(callingOnMatch.token.id);
 
     const yellowCount = grp.filter((g) => g.aspect === 'Yellow').length;
@@ -998,8 +1175,6 @@ export function extractComponentsFromCad(
     for (const g of grp) aspectSet.add(g.aspect);
     if (yellowCount >= 2) aspectSet.add('Double Yellow');
     const orderedAspects = ['Green', 'Double Yellow', 'Yellow', 'Red'].filter((a) => aspectSet.has(a));
-
-    const footTag = findNearestFootTag(cx, cy);
     const line = findNearestLine(cx, cy, blockSource);
     const cls = classifySignalType(primaryMatch.norm, blockSource, line);
     const isDotted = Boolean((blockSource || '').toLowerCase().includes('doted'));
@@ -1063,11 +1238,128 @@ export function extractComponentsFromCad(
     }
   }
 
+  // -------------------------------------------------------------------------
+  // 3b. Detect Quarter-Circle Position-Light Shunt Signals
+  // (Quarter-circle dome with 2-3 small open position-light dots, with or without SH label)
+  // -------------------------------------------------------------------------
+  const quarterDomes: Array<{ cx: number; cy: number; size: number }> = [];
+  for (const e of cad.entities) {
+    if (
+      ((e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') && e.points && e.points.length >= 3 && e.points.length <= 5) ||
+      (e.type === 'SPLINE' && e.points && e.points.length >= 6 && e.points.length <= 9)
+    ) {
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const p of e.points) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      }
+      const w = maxX - minX;
+      const h = maxY - minY;
+      if (w >= 1.5 && w <= 16.0 && h >= 1.5 && h <= 16.0 && Math.abs(w - h) <= Math.max(w, h) * 0.3) {
+        quarterDomes.push({ cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, size: (w + h) / 2 });
+      }
+    }
+  }
+
+  const smallOpenCircles = detectedCircles.filter(
+    (c) =>
+      c.r >= 0.2 &&
+      c.r <= 1.65 * Math.max(scaleFactor, 0.8) &&
+      !circleAspects.some((ca) => Math.hypot(ca.x - c.x, ca.y - c.y) < c.r * 0.6)
+  );
+  const visitedSmall = new Array(smallOpenCircles.length).fill(false);
+  let unlabeledShuntCount = 0;
+
+  for (let i = 0; i < smallOpenCircles.length; i++) {
+    if (visitedSmall[i]) continue;
+    visitedSmall[i] = true;
+    const grp = [smallOpenCircles[i]];
+    const queue = [i];
+    while (queue.length > 0) {
+      const cur = smallOpenCircles[queue.shift()!];
+      for (let j = 0; j < smallOpenCircles.length; j++) {
+        if (visitedSmall[j]) continue;
+        const other = smallOpenCircles[j];
+        if (Math.hypot(cur.x - other.x, cur.y - other.y) <= Math.max(cur.r, other.r) * 7.5) {
+          visitedSmall[j] = true;
+          queue.push(j);
+          grp.push(other);
+        }
+      }
+    }
+    if (grp.length < 2 || grp.length > 4) continue;
+
+    const sx = grp.reduce((a, g) => a + g.x, 0) / grp.length;
+    const sy = grp.reduce((a, g) => a + g.y, 0) / grp.length;
+
+    // Must be co-located with a quarter-circle dome OR an explicit SH label, and not already a main signal
+    const hasDome = quarterDomes.some((d) => Math.hypot(d.cx - sx, d.cy - sy) <= d.size * 1.1);
+    const nearbyShText = allTexts
+      .filter((t) => !usedSignalTexts.has(t.id) && Math.hypot(t.x - sx, t.y - sy) <= 25 * Math.max(scaleFactor, 0.8))
+      .sort((a, b) => Math.hypot(a.x - sx, a.y - sy) - Math.hypot(b.x - sx, b.y - sy))
+      .find((t) => /^SH[-]?\d+[A-Z]?$/i.test(t.clean));
+
+    if (!hasDome && !nearbyShText) continue;
+    if (isInNonTrackZone(sx, sy)) continue;
+    if (signals.some((s) => Math.hypot(s.x - sx, s.y - sy) < 4 * Math.max(scaleFactor, 0.8))) continue;
+
+    if (!nearbyShText) {
+      const sMinX = Math.min(...grp.map((g) => g.x - g.r));
+      const sMaxX = Math.max(...grp.map((g) => g.x + g.r));
+      const sMinY = Math.min(...grp.map((g) => g.y - g.r));
+      const sMaxY = Math.max(...grp.map((g) => g.y + g.r));
+      reviewCandidates.push({
+        id: `rev_sh_${reviewCandidates.length + 1}`,
+        x: sx,
+        y: sy,
+        minX: sMinX,
+        maxX: sMaxX,
+        minY: sMinY,
+        maxY: sMaxY,
+        isShunt: true,
+        reasonCodes: ['MISSING_SHUNT_LABEL'],
+      });
+      continue;
+    }
+
+    usedSignalTexts.add(nearbyShText.id);
+    const label = nearbyShText.clean.toUpperCase().replace(/^SH[-]?/, 'SH');
+    const rawLabel = nearbyShText.clean;
+
+    const footTag = findNearestFootTag(sx, sy);
+    const line = findNearestLine(sx, sy, grp[0].blockSource);
+    signals.push({
+      id: `sig_${signals.length + 1}`,
+      label,
+      rawLabel,
+      x: sx,
+      y: sy,
+      layer: grp[0].layer,
+      blockSource: grp[0].blockSource || 'SHUNT_QUARTER_CIRCLE',
+      aspects: ['Position Light'],
+      aspectPatternText: `Shunt Quarter-Circle (${grp.length} lights)`,
+      facing: footTag ? footTag.facing : 'UNKNOWN',
+      directionLabel: footTag ? footTag.directionLabel : 'Unknown',
+      line,
+      sectionType: 'Station Section',
+      signalType: 'Shunt',
+      footTag,
+      isDotted: false,
+      isShunt: true,
+      isCallingOn: false,
+      isLss: false,
+    });
+  }
+
   // Fallback for vector PDFs or CAD drawings where signal heads use filled/non-chord circles:
   // Capture remaining running signal labels (e.g., S1, S1D, S1 ID, S1A, S3, S25, S30A) directly from spatial text
   for (const t of allTexts) {
     if (usedSignalTexts.has(t.id)) continue;
-    const parsed = tryParseSignalToken(t.clean, t.x, t.y, t.id);
+    if (t.layer === 'SIG_OCR') continue;
+    if (isInNonTrackZone(t.x, t.y)) continue;
+    const parsed = tryParseSignalToken(t.clean, t.x, t.y, t.id, t.layer);
     if (!parsed) continue;
 
     // Skip duplicate text already matched within close proximity
@@ -2520,5 +2812,6 @@ export function extractComponentsFromCad(
     tables,
     corridorSummaryText,
     missingCompanionInfo,
+    reviewCandidates,
   };
 }

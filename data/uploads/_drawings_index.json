@@ -1,478 +1,84 @@
 [
   {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_ea82b5b5-2a3.pdf",
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_e0cfb643-1e1.dwg",
     "drawing": {
-      "id": "drw_ea82b5b5-2a3",
-      "fileName": "Chitgidda_Layout.pdf",
-      "format": "PDF",
-      "sizeBytes": 639625,
-      "uploadedAt": "2026-11-25T05:18:11.092Z",
+      "id": "drw_e0cfb643-1e1",
+      "fileName": "0_RFIDtag_TIN_Layout_Model_Stations_AESPL_C.dwg",
+      "format": "DWG",
+      "sizeBytes": 3580095,
+      "uploadedAt": "2026-11-26T09:43:05.606Z",
       "role": "primary_layout",
       "validationStatus": "valid",
       "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+        "Validated binary AutoCAD DWG header (AC1015).",
+        "Decoded DWG (AutoCAD 2000–2002 (AC1015)) with 1,007 entities, 15 layers, and 311 text annotations."
       ],
       "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_ea82b5b5-2a3/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 842,
-        "height": 4082,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 842,
-          "pageHeight": 4082,
-          "llx": 0.8,
-          "lly": 1951.26,
-          "urx": 842,
-          "ury": 2130,
-          "cropX": 0.8,
-          "cropY": 1952,
-          "cropWidth": 841.2,
-          "cropHeight": 178.74,
-          "trimmedRatio": 0.9562542440539021
-        }
-      }
+      "fileUrl": "/api/drawings/drw_e0cfb643-1e1/file"
     }
   },
   {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\public\\assets\\aistudio\\Railway_Spec_d97cd2c7.pdf",
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_34dcdca9-845.dwg",
     "drawing": {
-      "id": "drw_spec_8b17a043",
-      "fileName": "RDSO_SPN_196_2020_KAVACH_Spec_Amdt6.pdf",
-      "format": "PDF",
-      "sizeBytes": 6636345,
-      "uploadedAt": "2026-11-25T10:16:20.769Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Loaded RDSO/SPN/196/2020 V4.0 Amdt-6 PDF (39 pages).",
-        "Navigate to any layout sheet (e.g., Page 15 or Page 35) in Drawing Viewer before running extraction."
-      ],
-      "pageCount": 52,
-      "fileUrl": "/api/drawings/drw_spec_8b17a043/file",
-      "pdfMetadata": {
-        "pageCount": 52,
-        "title": "RDSO KAVACH Control Table Guidelines"
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_82d51a16-a92.pdf",
-    "drawing": {
-      "id": "drw_82d51a16-a92",
-      "fileName": "JANKAMPET JN.pdf",
-      "format": "PDF",
-      "sizeBytes": 4745130,
-      "uploadedAt": "2026-11-25T10:28:06.118Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.4).",
-        "Detected 1 PDF sheet. Tight drawing border: 1134×4414 pt."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_82d51a16-a92/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 1133.76,
-        "height": 4414.32,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 1133.76,
-          "pageHeight": 4414.32,
-          "llx": 0,
-          "lly": 0,
-          "urx": 1133.76,
-          "ury": 4414.32,
-          "cropX": 0,
-          "cropY": 0,
-          "cropWidth": 1133.76,
-          "cropHeight": 4414.32,
-          "trimmedRatio": 0
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_60995b5b-3b9.pdf",
-    "drawing": {
-      "id": "drw_60995b5b-3b9",
-      "fileName": "Table Of Contro Chitgidda.pdf",
-      "format": "PDF",
-      "sizeBytes": 135154,
-      "uploadedAt": "2026-11-25T10:34:10.855Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 12 PDF sheets. Tight drawing border: 1024×804 pt (18% blank outer margin trimmed automatically)."
-      ],
-      "pageCount": 12,
-      "fileUrl": "/api/drawings/drw_60995b5b-3b9/file",
-      "pdfMetadata": {
-        "pageCount": 12,
-        "width": 1190.55,
-        "height": 841.89,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 1190.55,
-          "pageHeight": 841.89,
-          "llx": 42.33,
-          "lly": 0,
-          "urx": 1066.57,
-          "ury": 804.01,
-          "cropX": 42.33,
-          "cropY": 37.879999999999995,
-          "cropWidth": 1024.24,
-          "cropHeight": 804.01,
-          "trimmedRatio": 0.17840045037187735
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_3741130b-8ae.pdf",
-    "drawing": {
-      "id": "drw_3741130b-8ae",
-      "fileName": "Chitgidda_Layout.pdf",
-      "format": "PDF",
-      "sizeBytes": 639625,
-      "uploadedAt": "2026-11-25T10:34:58.310Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_3741130b-8ae/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 842,
-        "height": 4082,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 842,
-          "pageHeight": 4082,
-          "llx": 0.8,
-          "lly": 1951.26,
-          "urx": 842,
-          "ury": 2130,
-          "cropX": 0.8,
-          "cropY": 1952,
-          "cropWidth": 841.2,
-          "cropHeight": 178.74,
-          "trimmedRatio": 0.9562542440539021
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_4f643c54-3a4.pdf",
-    "drawing": {
-      "id": "drw_4f643c54-3a4",
-      "fileName": "Chitgidda_Layout.pdf",
-      "format": "PDF",
-      "sizeBytes": 639625,
-      "uploadedAt": "2026-11-25T10:49:09.929Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_4f643c54-3a4/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 842,
-        "height": 4082,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 842,
-          "pageHeight": 4082,
-          "llx": 0.8,
-          "lly": 1951.26,
-          "urx": 842,
-          "ury": 2130,
-          "cropX": 0.8,
-          "cropY": 1952,
-          "cropWidth": 841.2,
-          "cropHeight": 178.74,
-          "trimmedRatio": 0.9562542440539021
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_3832944c-86b.pdf",
-    "drawing": {
-      "id": "drw_3832944c-86b",
-      "fileName": "Chitgidda_Layout.pdf",
-      "format": "PDF",
-      "sizeBytes": 639625,
-      "uploadedAt": "2026-11-25T10:59:58.800Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_3832944c-86b/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 842,
-        "height": 4082,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 842,
-          "pageHeight": 4082,
-          "llx": 0.8,
-          "lly": 1951.26,
-          "urx": 842,
-          "ury": 2130,
-          "cropX": 0.8,
-          "cropY": 1952,
-          "cropWidth": 841.2,
-          "cropHeight": 178.74,
-          "trimmedRatio": 0.9562542440539021
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_9ecf053b-18f.pdf",
-    "drawing": {
-      "id": "drw_9ecf053b-18f",
-      "fileName": "Chitgidda_Layout.pdf",
-      "format": "PDF",
-      "sizeBytes": 639625,
-      "uploadedAt": "2026-11-25T11:01:26.580Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_9ecf053b-18f/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 842,
-        "height": 4082,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 842,
-          "pageHeight": 4082,
-          "llx": 0.8,
-          "lly": 1951.26,
-          "urx": 842,
-          "ury": 2130,
-          "cropX": 0.8,
-          "cropY": 1952,
-          "cropWidth": 841.2,
-          "cropHeight": 178.74,
-          "trimmedRatio": 0.9562542440539021
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_9e7d1489-8e7.pdf",
-    "drawing": {
-      "id": "drw_9e7d1489-8e7",
-      "fileName": "Chitgidda_Layout.pdf",
-      "format": "PDF",
-      "sizeBytes": 639625,
-      "uploadedAt": "2026-11-25T11:20:27.192Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_9e7d1489-8e7/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 842,
-        "height": 4082,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 842,
-          "pageHeight": 4082,
-          "llx": 0.8,
-          "lly": 1951.26,
-          "urx": 842,
-          "ury": 2130,
-          "cropX": 0.8,
-          "cropY": 1952,
-          "cropWidth": 841.2,
-          "cropHeight": 178.74,
-          "trimmedRatio": 0.9562542440539021
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_3dd9a142-06f.pdf",
-    "drawing": {
-      "id": "drw_3dd9a142-06f",
-      "fileName": "Chitgidda_Layout.pdf",
-      "format": "PDF",
-      "sizeBytes": 639625,
-      "uploadedAt": "2026-11-25T11:22:30.701Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_3dd9a142-06f/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 842,
-        "height": 4082,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 842,
-          "pageHeight": 4082,
-          "llx": 0.8,
-          "lly": 1951.26,
-          "urx": 842,
-          "ury": 2130,
-          "cropX": 0.8,
-          "cropY": 1952,
-          "cropWidth": 841.2,
-          "cropHeight": 178.74,
-          "trimmedRatio": 0.9562542440539021
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_58a7fda6-75e.pdf",
-    "drawing": {
-      "id": "drw_58a7fda6-75e",
-      "fileName": "Chitgidda_Layout.pdf",
-      "format": "PDF",
-      "sizeBytes": 639625,
-      "uploadedAt": "2026-11-25T11:22:38.588Z",
+      "id": "drw_34dcdca9-845",
+      "fileName": "WP_BT.dwg",
+      "format": "DWG",
+      "sizeBytes": 744536,
+      "uploadedAt": "2026-11-26T09:43:36.337Z",
       "role": "other",
       "validationStatus": "valid",
       "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+        "Validated binary AutoCAD DWG header (AC1032).",
+        "Decoded DWG (AutoCAD 2018–2024 (AC1032)) with 3,634 entities, 2 layers, and 431 text annotations."
       ],
       "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_58a7fda6-75e/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 842,
-        "height": 4082,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 842,
-          "pageHeight": 4082,
-          "llx": 0.8,
-          "lly": 1951.26,
-          "urx": 842,
-          "ury": 2130,
-          "cropX": 0.8,
-          "cropY": 1952,
-          "cropWidth": 841.2,
-          "cropHeight": 178.74,
-          "trimmedRatio": 0.9562542440539021
-        }
-      }
+      "fileUrl": "/api/drawings/drw_34dcdca9-845/file"
     }
   },
   {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_291884f9-6e6.pdf",
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_a24a99f1-820.dwg",
     "drawing": {
-      "id": "drw_291884f9-6e6",
-      "fileName": "Chitgidda_Layout.pdf",
-      "format": "PDF",
-      "sizeBytes": 639625,
-      "uploadedAt": "2026-11-25T11:40:30.485Z",
+      "id": "drw_a24a99f1-820",
+      "fileName": "GT-BT.dwg",
+      "format": "DWG",
+      "sizeBytes": 434700,
+      "uploadedAt": "2026-11-26T09:54:45.218Z",
       "role": "primary_layout",
       "validationStatus": "valid",
       "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+        "Validated binary AutoCAD DWG header (AC1032).",
+        "Decoded DWG (AutoCAD 2018–2024 (AC1032)) with 5,003 entities, 1 layers, and 485 text annotations."
       ],
       "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_291884f9-6e6/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 842,
-        "height": 4082,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 842,
-          "pageHeight": 4082,
-          "llx": 0.8,
-          "lly": 1951.26,
-          "urx": 842,
-          "ury": 2130,
-          "cropX": 0.8,
-          "cropY": 1952,
-          "cropWidth": 841.2,
-          "cropHeight": 178.74,
-          "trimmedRatio": 0.9562542440539021
-        }
-      }
+      "fileUrl": "/api/drawings/drw_a24a99f1-820/file"
     }
   },
   {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_070b8b72-3f5.pdf",
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_aef0c36e-0c0.dwg",
     "drawing": {
-      "id": "drw_070b8b72-3f5",
-      "fileName": "Chitgidda_Layout.pdf",
-      "format": "PDF",
-      "sizeBytes": 639625,
-      "uploadedAt": "2026-11-25T11:56:44.390Z",
+      "id": "drw_aef0c36e-0c0",
+      "fileName": "GT-BT.dwg",
+      "format": "DWG",
+      "sizeBytes": 434700,
+      "uploadedAt": "2026-11-26T10:29:14.548Z",
       "role": "primary_layout",
       "validationStatus": "valid",
       "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+        "Validated binary AutoCAD DWG header (AC1032).",
+        "Decoded DWG (AutoCAD 2018–2024 (AC1032)) with 5,003 entities, 1 layers, and 485 text annotations."
       ],
       "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_070b8b72-3f5/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 842,
-        "height": 4082,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 842,
-          "pageHeight": 4082,
-          "llx": 0.8,
-          "lly": 1951.26,
-          "urx": 842,
-          "ury": 2130,
-          "cropX": 0.8,
-          "cropY": 1952,
-          "cropWidth": 841.2,
-          "cropHeight": 178.74,
-          "trimmedRatio": 0.9562542440539021
-        }
-      }
+      "fileUrl": "/api/drawings/drw_aef0c36e-0c0/file"
     }
   },
   {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_9877c505-812.dwg",
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_5afbd020-fca.dwg",
     "drawing": {
-      "id": "drw_9877c505-812",
+      "id": "drw_5afbd020-fca",
       "fileName": "0_RFIDtag_TIN_Layout_Model_Stations_AESPL_C.dwg",
       "format": "DWG",
       "sizeBytes": 3580095,
-      "uploadedAt": "2026-11-25T12:05:40.764Z",
+      "uploadedAt": "2026-11-26T11:15:44.737Z",
       "role": "primary_layout",
       "validationStatus": "valid",
       "validationNotes": [
@@ -480,430 +86,25 @@
         "Decoded DWG (AutoCAD 2000–2002 (AC1015)) with 1,007 entities, 15 layers, and 311 text annotations."
       ],
       "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_9877c505-812/file"
+      "fileUrl": "/api/drawings/drw_5afbd020-fca/file"
     }
   },
   {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_8c685ac6-fcc.dwg",
+    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_e030a238-cb1.dwg",
     "drawing": {
-      "id": "drw_8c685ac6-fcc",
-      "fileName": "0_RFIDtag_TIN_Layout_Model_Stations_AESPL_C.dwg",
+      "id": "drw_e030a238-cb1",
+      "fileName": "WP_BT.dwg",
       "format": "DWG",
-      "sizeBytes": 3580095,
-      "uploadedAt": "2026-11-25T12:52:30.012Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated binary AutoCAD DWG header (AC1015).",
-        "Decoded DWG (AutoCAD 2000–2002 (AC1015)) with 1,007 entities, 15 layers, and 311 text annotations."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_8c685ac6-fcc/file"
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_8b760b7a-87e.pdf",
-    "drawing": {
-      "id": "drw_8b760b7a-87e",
-      "fileName": "Chitgidda_Layout.pdf",
-      "format": "PDF",
-      "sizeBytes": 639625,
-      "uploadedAt": "2026-11-25T12:54:50.246Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_8b760b7a-87e/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 842,
-        "height": 4082,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 842,
-          "pageHeight": 4082,
-          "llx": 0.8,
-          "lly": 1951.26,
-          "urx": 842,
-          "ury": 2130,
-          "cropX": 0.8,
-          "cropY": 1952,
-          "cropWidth": 841.2,
-          "cropHeight": 178.74,
-          "trimmedRatio": 0.9562542440539021
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_314ef03c-33d.pdf",
-    "drawing": {
-      "id": "drw_314ef03c-33d",
-      "fileName": "JANKAMPET JN.pdf",
-      "format": "PDF",
-      "sizeBytes": 4745130,
-      "uploadedAt": "2026-11-25T12:59:59.892Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.4).",
-        "Detected 1 PDF sheet. Tight drawing border: 1134×4414 pt."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_314ef03c-33d/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 1133.76,
-        "height": 4414.32,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 1133.76,
-          "pageHeight": 4414.32,
-          "llx": 0,
-          "lly": 0,
-          "urx": 1133.76,
-          "ury": 4414.32,
-          "cropX": 0,
-          "cropY": 0,
-          "cropWidth": 1133.76,
-          "cropHeight": 4414.32,
-          "trimmedRatio": 0
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_9e700875-ac6.dwg",
-    "drawing": {
-      "id": "drw_9e700875-ac6",
-      "fileName": "Chitgidda_Layout.dwg",
-      "format": "DWG",
-      "sizeBytes": 21283820,
-      "uploadedAt": "2026-11-25T13:03:46.348Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated binary AutoCAD DWG header (AC1018).",
-        "Decoded DWG (AutoCAD 2004–2006 (AC1018)) with 69,588 entities, 2 layers, and 3 text annotations."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_9e700875-ac6/file"
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_de103bf9-35c.pdf",
-    "drawing": {
-      "id": "drw_de103bf9-35c",
-      "fileName": "JANKAMPET JN.pdf",
-      "format": "PDF",
-      "sizeBytes": 4745130,
-      "uploadedAt": "2026-11-25T13:05:14.619Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.4).",
-        "Detected 1 PDF sheet. Tight drawing border: 1134×4414 pt."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_de103bf9-35c/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 1133.76,
-        "height": 4414.32,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 1133.76,
-          "pageHeight": 4414.32,
-          "llx": 0,
-          "lly": 0,
-          "urx": 1133.76,
-          "ury": 4414.32,
-          "cropX": 0,
-          "cropY": 0,
-          "cropWidth": 1133.76,
-          "cropHeight": 4414.32,
-          "trimmedRatio": 0
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_1c6919fc-61a.pdf",
-    "drawing": {
-      "id": "drw_1c6919fc-61a",
-      "fileName": "JANKAMPET JN.pdf",
-      "format": "PDF",
-      "sizeBytes": 4745130,
-      "uploadedAt": "2026-11-25T13:07:48.608Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.4).",
-        "Detected 1 PDF sheet. Tight drawing border: 1134×4414 pt."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_1c6919fc-61a/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 1133.76,
-        "height": 4414.32,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 1133.76,
-          "pageHeight": 4414.32,
-          "llx": 0,
-          "lly": 0,
-          "urx": 1133.76,
-          "ury": 4414.32,
-          "cropX": 0,
-          "cropY": 0,
-          "cropWidth": 1133.76,
-          "cropHeight": 4414.32,
-          "trimmedRatio": 0
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_ca48dc05-132.pdf",
-    "drawing": {
-      "id": "drw_ca48dc05-132",
-      "fileName": "Chitgidda_Layout.pdf",
-      "format": "PDF",
-      "sizeBytes": 639625,
-      "uploadedAt": "2026-11-25T13:09:17.106Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_ca48dc05-132/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 842,
-        "height": 4082,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 842,
-          "pageHeight": 4082,
-          "llx": 0.8,
-          "lly": 1951.26,
-          "urx": 842,
-          "ury": 2130,
-          "cropX": 0.8,
-          "cropY": 1952,
-          "cropWidth": 841.2,
-          "cropHeight": 178.74,
-          "trimmedRatio": 0.9562542440539021
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_63c83fcf-01c.dwg",
-    "drawing": {
-      "id": "drw_63c83fcf-01c",
-      "fileName": "0_RFIDtag_TIN_Layout_Model_Stations_AESPL_C.dwg",
-      "format": "DWG",
-      "sizeBytes": 3580095,
-      "uploadedAt": "2026-11-25T13:09:46.718Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated binary AutoCAD DWG header (AC1015).",
-        "Decoded DWG (AutoCAD 2000–2002 (AC1015)) with 1,007 entities, 15 layers, and 311 text annotations."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_63c83fcf-01c/file"
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_26c3b8d8-af5.dwg",
-    "drawing": {
-      "id": "drw_26c3b8d8-af5",
-      "fileName": "0_RFIDtag_TIN_Layout_Model_Stations_AESPL_C.dwg",
-      "format": "DWG",
-      "sizeBytes": 3580095,
-      "uploadedAt": "2026-11-25T18:15:41.085Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated binary AutoCAD DWG header (AC1015).",
-        "Decoded DWG (AutoCAD 2000–2002 (AC1015)) with 1,007 entities, 15 layers, and 311 text annotations."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_26c3b8d8-af5/file"
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_e3724ff9-3f2.pdf",
-    "drawing": {
-      "id": "drw_e3724ff9-3f2",
-      "fileName": "Chitgidda_Layout.pdf",
-      "format": "PDF",
-      "sizeBytes": 639625,
-      "uploadedAt": "2026-11-25T18:20:06.200Z",
+      "sizeBytes": 744536,
+      "uploadedAt": "2026-11-26T11:16:27.294Z",
       "role": "other",
       "validationStatus": "valid",
       "validationNotes": [
-        "Validated PDF signature (PDF 1.6).",
-        "Detected 1 PDF sheet. Tight drawing border: 841×179 pt (96% blank outer margin trimmed automatically)."
+        "Validated binary AutoCAD DWG header (AC1032).",
+        "Decoded DWG (AutoCAD 2018–2024 (AC1032)) with 3,634 entities, 2 layers, and 431 text annotations."
       ],
       "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_e3724ff9-3f2/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 842,
-        "height": 4082,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 842,
-          "pageHeight": 4082,
-          "llx": 0.8,
-          "lly": 1951.26,
-          "urx": 842,
-          "ury": 2130,
-          "cropX": 0.8,
-          "cropY": 1952,
-          "cropWidth": 841.2,
-          "cropHeight": 178.74,
-          "trimmedRatio": 0.9562542440539021
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_f2efa317-d12.pdf",
-    "drawing": {
-      "id": "drw_f2efa317-d12",
-      "fileName": "JANKAMPET JN.pdf",
-      "format": "PDF",
-      "sizeBytes": 4745130,
-      "uploadedAt": "2026-11-25T18:20:32.529Z",
-      "role": "other",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.4).",
-        "Detected 1 PDF sheet. Tight drawing border: 1134×4414 pt."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_f2efa317-d12/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 1133.76,
-        "height": 4414.32,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 1133.76,
-          "pageHeight": 4414.32,
-          "llx": 0,
-          "lly": 0,
-          "urx": 1133.76,
-          "ury": 4414.32,
-          "cropX": 0,
-          "cropY": 0,
-          "cropWidth": 1133.76,
-          "cropHeight": 4414.32,
-          "trimmedRatio": 0
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_90f134a7-06a.pdf",
-    "drawing": {
-      "id": "drw_90f134a7-06a",
-      "fileName": "Wangapalli RFID TIN-Tag Layout_2.0.9_29.07.2025 (6).pdf",
-      "format": "PDF",
-      "sizeBytes": 501467,
-      "uploadedAt": "2026-11-26T05:03:44.735Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.7).",
-        "Detected 1 PDF sheet. Tight drawing border: 2524×687 pt (20% blank outer margin trimmed automatically)."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_90f134a7-06a/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 2582,
-        "height": 842,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 2582,
-          "pageHeight": 842,
-          "llx": 29,
-          "lly": 77.36,
-          "urx": 2553.48,
-          "ury": 764.76,
-          "cropX": 29,
-          "cropY": 77.24000000000001,
-          "cropWidth": 2524.48,
-          "cropHeight": 687.4,
-          "trimmedRatio": 0.2017974098040335
-        }
-      }
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_a6a8d4ab-648.dwg",
-    "drawing": {
-      "id": "drw_a6a8d4ab-648",
-      "fileName": "Wangapalli RFID TIN-Tag Layout_2.0.9_29.07.2025 (6).dwg",
-      "format": "DWG",
-      "sizeBytes": 762028,
-      "uploadedAt": "2026-11-26T05:13:48.403Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated binary AutoCAD DWG header (AC1018).",
-        "Decoded DWG (AutoCAD 2004–2006 (AC1018)) with 5,659 entities, 2 layers, and 429 text annotations."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_a6a8d4ab-648/file"
-    }
-  },
-  {
-    "filePath": "C:\\Users\\shiva\\OneDrive\\Desktop\\WORK\\railspectest\\data\\uploads\\drw_3534b178-1f2.pdf",
-    "drawing": {
-      "id": "drw_3534b178-1f2",
-      "fileName": "Wangapalli RFID TIN-Tag Layout_2.0.9_29.07.2025 (6).pdf",
-      "format": "PDF",
-      "sizeBytes": 501467,
-      "uploadedAt": "2026-11-26T05:21:34.060Z",
-      "role": "primary_layout",
-      "validationStatus": "valid",
-      "validationNotes": [
-        "Validated PDF signature (PDF 1.7).",
-        "Detected 1 PDF sheet. Tight drawing border: 2524×687 pt (20% blank outer margin trimmed automatically)."
-      ],
-      "pageCount": 1,
-      "fileUrl": "/api/drawings/drw_3534b178-1f2/file",
-      "pdfMetadata": {
-        "pageCount": 1,
-        "width": 2582,
-        "height": 842,
-        "contentBounds": {
-          "pageNumber": 1,
-          "pageWidth": 2582,
-          "pageHeight": 842,
-          "llx": 29,
-          "lly": 77.36,
-          "urx": 2553.48,
-          "ury": 764.76,
-          "cropX": 29,
-          "cropY": 77.24000000000001,
-          "cropWidth": 2524.48,
-          "cropHeight": 687.4,
-          "trimmedRatio": 0.2017974098040335
-        }
-      }
+      "fileUrl": "/api/drawings/drw_e030a238-cb1/file"
     }
   }
 ]

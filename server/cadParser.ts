@@ -1768,6 +1768,8 @@ function analyzeCadSignalAndRfidGeometry(cad: CadDocumentData): {
   // 2. Detect Signal-Head Circles (both native CIRCLE entities and bulged circular LWPOLYLINE loops)
   const detectedCircles: Array<{ x: number; y: number; r: number; blockSource?: string }> = [];
 
+  const quarterArcs: Array<{ cx: number; cy: number; r: number; blockSource?: string }> = [];
+
   for (const e of cad.entities) {
     if (
       e.type === 'CIRCLE' &&
@@ -1782,7 +1784,7 @@ function analyzeCadSignalAndRfidGeometry(cad: CadDocumentData): {
       e.points &&
       e.points.length >= 8
     ) {
-      // Check if polyline forms a circular ring (from AutoCAD bulged 2-vertex circle)
+      // Check if polyline forms a circular ring or strict 8-10 vertex octagon
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       for (const p of e.points) {
         if (p.x < minX) minX = p.x;
@@ -1792,18 +1794,72 @@ function analyzeCadSignalAndRfidGeometry(cad: CadDocumentData): {
       }
       const w = maxX - minX;
       const h = maxY - minY;
-      if (w > 0.4 && h > 0.4 && w < cad.bounds.width * 0.05 && Math.abs(w - h) / Math.max(w, h) < 0.2) {
+      if (w > 0.4 && h > 0.4 && w < cad.bounds.width * 0.05 && h < cad.bounds.height * 0.05) {
         const cx = (minX + maxX) / 2;
         const cy = (minY + maxY) / 2;
         const r = (w + h) / 4;
-        const radialOk = e.points.every((p) => {
-          const d = Math.hypot(p.x - cx, p.y - cy);
-          return d >= r * 0.78 && d <= r * 1.22;
-        });
-        if (radialOk) {
+        const ratio = Math.min(w, h) / Math.max(w, h);
+        const radialOk =
+          ratio >= 0.75 &&
+          e.points.every((p) => {
+            const d = Math.hypot(p.x - cx, p.y - cy);
+            return d >= r * 0.75 && d <= r * 1.25;
+          });
+        const isOctagon = ratio >= 0.55 && e.points.length >= 8 && e.points.length <= 10;
+        if (radialOk || isOctagon) {
           detectedCircles.push({ x: cx, y: cy, r, blockSource: e.blockSource });
         }
       }
+    } else if (e.type === 'SPLINE' && e.points && e.points.length === 4) {
+      const p0 = e.points[0], p1 = e.points[1], p2 = e.points[2], p3 = e.points[3];
+      const dx = Math.abs(p3.x - p0.x);
+      const dy = Math.abs(p3.y - p0.y);
+      if (dx >= 0.25 && dy >= 0.25 && dx < cad.bounds.width * 0.025 && Math.abs(dx - dy) <= Math.max(dx, dy) * 0.25) {
+        const mxCtrl = (p1.x + p2.x) / 2;
+        const myCtrl = (p1.y + p2.y) / 2;
+        const c1x = p0.x, c1y = p3.y;
+        const c2x = p3.x, c2y = p0.y;
+        const d1 = Math.hypot(mxCtrl - c1x, myCtrl - c1y);
+        const d2 = Math.hypot(mxCtrl - c2x, myCtrl - c2y);
+        quarterArcs.push({ cx: d1 > d2 ? c1x : c2x, cy: d1 > d2 ? c1y : c2y, r: (dx + dy) / 2, blockSource: e.blockSource });
+      }
+    } else if (e.type === 'SPLINE' && e.points && e.points.length >= 8) {
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const p of e.points) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      }
+      const w = maxX - minX;
+      const h = maxY - minY;
+      if (w > 0.4 && h > 0.4 && w < cad.bounds.width * 0.05 && h < cad.bounds.height * 0.05) {
+        const ratio = Math.min(w, h) / Math.max(w, h);
+        if (ratio >= 0.55) {
+          detectedCircles.push({ x: (minX + maxX) / 2, y: (minY + maxY) / 2, r: (w + h) / 4, blockSource: e.blockSource });
+        }
+      }
+    }
+  }
+
+  const usedArc = new Array(quarterArcs.length).fill(false);
+  for (let i = 0; i < quarterArcs.length; i++) {
+    if (usedArc[i]) continue;
+    usedArc[i] = true;
+    const base = quarterArcs[i];
+    let count = 1, sumX = base.cx, sumY = base.cy, sumR = base.r;
+    for (let j = i + 1; j < quarterArcs.length; j++) {
+      if (usedArc[j]) continue;
+      if (Math.hypot(quarterArcs[j].cx - base.cx, quarterArcs[j].cy - base.cy) <= Math.max(base.r * 0.2, 0.15)) {
+        usedArc[j] = true;
+        count++;
+        sumX += quarterArcs[j].cx;
+        sumY += quarterArcs[j].cy;
+        sumR += quarterArcs[j].r;
+      }
+    }
+    if (count >= 3) {
+      detectedCircles.push({ x: sumX / count, y: sumY / count, r: sumR / count, blockSource: base.blockSource });
     }
   }
 
