@@ -931,25 +931,102 @@ def get_pdf_metadata(pdf_path, page_num=1):
         "AVOIDANCE SYSTEM", "COLLISION AVOIDANCE", "SYSTEM", "TCAS", "INDIAN RAILWAYS",
     }
 
-    # 1. Station Name (Code), e.g. CHITGIDDA (CTF), JANKAMPET Jn. (JKM)
-    for line in full_text.splitlines():
-        clean = re.sub(r'\s+', ' ', line).strip()
-        if not clean:
+    fname = os.path.basename(pdf_path).upper()
+    blocks = page.get_text("blocks") or []
+
+    def is_adjacent_direction(text_line):
+        return bool(re.search(
+            r'\b(?:TO|FROM|TOWARDS|DN\s+MAIN|UP\s+MAIN|LINE)\b|\b\d+(?:\.\d+)?\s*Km\b',
+            text_line,
+            re.IGNORECASE
+        ))
+
+    candidates = {}
+
+    def register_candidate(raw_name, raw_code, base_score, src_tag=""):
+        c_name = re.sub(r'\s+', ' ', raw_name).strip(" .-_:\t\r\n")
+        c_code = raw_code.strip().upper() if raw_code else ""
+        c_up = c_name.upper()
+        if not c_name or len(c_name) < 3 or len(c_name) > 32:
+            return
+        if c_code in {"TCAS", "RFID", "KAV", "TIN", "SIP", "TOC"}:
+            return
+        if c_up in generic_phrases or any(w in c_up for w in ["RFID", "LAYOUT", "PLAN", "TABLE", "AVOIDANCE", "SYSTEM", "RAILWAY"]):
+            return
+        key = c_up
+        if key not in candidates:
+            candidates[key] = {
+                'name': c_name,
+                'code': c_code,
+                'score': base_score,
+                'occurrences': 1,
+            }
+        else:
+            candidates[key]['score'] += base_score
+            candidates[key]['occurrences'] += 1
+            if c_code and not candidates[key]['code']:
+                candidates[key]['code'] = c_code
+
+    # 1. Embedded PDF text blocks in top center
+    for b in blocks:
+        bx0, by0, bx1, by1, btext = b[0], b[1], b[2], b[3], b[4]
+        is_top_center = (by0 < ph * 0.35) and (0.15 * pw < (bx0 + bx1) / 2 < 0.85 * pw)
+        for line in btext.splitlines():
+            sline = line.strip()
+            if not sline:
+                continue
+            is_adj = is_adjacent_direction(sline)
+            m_nc = re.search(r'\b([A-Z][A-Za-z\s.-]{2,26}?)\s*\(([A-Z]{2,5})\)', sline)
+            if m_nc:
+                score = 80 if is_top_center else (-150 if is_adj else 15)
+                register_candidate(m_nc.group(1), m_nc.group(2), score, "embedded_block")
+
+    # 2. Header text from high-DPI crops (r_center and r_top)
+    for line in header_text.splitlines():
+        sline = line.strip()
+        if not sline:
             continue
-        m_nc = re.search(r'\b([A-Z][A-Za-z\s.-]{2,26}?)\s*\(([A-Z]{2,5})\)', clean)
+        is_adj = is_adjacent_direction(sline)
+        m_nc = re.search(r'\b([A-Z][A-Za-z\s.-]{2,26}?)\s*\(([A-Z]{2,5})\)', sline)
         if m_nc:
-            cand_name = m_nc.group(1).strip(" .-:")
-            cand_code = m_nc.group(2).strip()
-            up_name = cand_name.upper()
-            up_code = cand_code.upper()
-            if (
-                up_code not in {"TCAS", "RFID", "KAV", "TIN", "SIP", "TOC"}
-                and up_name not in generic_phrases
-                and not any(w in up_name for w in ["RFID", "LAYOUT", "PLAN", "TABLE", "AVOIDANCE", "SYSTEM", "RAILWAY"])
-            ):
-                station_name = station_name or cand_name
-                station_code = station_code or cand_code
-                break
+            score = 70 if not is_adj else -100
+            register_candidate(m_nc.group(1), m_nc.group(2), score, "header_ocr")
+        else:
+            m_bare = re.search(r'\b([A-Z][A-Za-z\s.-]{3,24}\b(?:\s*Jn\.?)?)\s*(?:\n|$)', sline)
+            if m_bare:
+                bname = m_bare.group(1).strip()
+                if (
+                    len(bname) >= 4
+                    and not re.search(r'STATION|STAION|CLASS|IPU|PLAN|DRAWING|LAYOUT|SCALE|DATE|REV', bname, re.IGNORECASE)
+                    and not is_adj
+                ):
+                    register_candidate(bname, "", 45, "header_ocr_bare")
+
+    # 3. Full text scan across all crops and embedded streams (with strict penalty for direction arrows)
+    for line in full_text.splitlines():
+        sline = line.strip()
+        if not sline:
+            continue
+        is_adj = is_adjacent_direction(sline)
+        m_nc = re.search(r'\b([A-Z][A-Za-z\s.-]{2,26}?)\s*\(([A-Z]{2,5})\)', sline)
+        if m_nc:
+            score = -120 if is_adj else 10
+            register_candidate(m_nc.group(1), m_nc.group(2), score, "full_text")
+
+    # 4. Filename & Station ID Contiguity Boost
+    for k, cand in candidates.items():
+        c_name = cand['name']
+        if k in fname or any(part in fname for part in k.split() if len(part) >= 4):
+            cand['score'] += 50
+        pattern = re.escape(c_name) + r'[\s\S]{0,80}(?:Station|Staion|Stn\.?)\s*[I1]D'
+        if re.search(pattern, header_text, re.IGNORECASE):
+            cand['score'] += 40
+
+    if candidates:
+        best_cand = max(candidates.values(), key=lambda c: c['score'])
+        if best_cand['score'] > 0:
+            station_name = best_cand['name']
+            station_code = best_cand['code']
 
     if not station_name:
         m_sn = re.search(r'Station\s*Name\s*[:=\-]?\s*([A-Za-z][A-Za-z\s.-]{2,24})', full_text, re.IGNORECASE)
