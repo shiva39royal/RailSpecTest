@@ -16,8 +16,11 @@ except ImportError:
     except ImportError as e:
         raise ImportError(f"PyMuPDF is not installed in the active environment ({sys.executable}). Run: pip install pymupdf") from e
 
-import pytesseract  # type: ignore[import-untyped]
-from PIL import Image
+import pytesseract  # type: ignore[import-not-found,import-untyped]
+try:
+    from PIL import Image  # type: ignore[import-not-found]
+except ImportError as e:
+    raise ImportError(f"Pillow (PIL) is not installed in the active environment ({sys.executable}). Run: pip install pillow") from e
 
 _tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 if os.path.exists(_tesseract_path):
